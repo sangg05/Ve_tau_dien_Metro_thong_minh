@@ -3,7 +3,7 @@ import 'pages/home_page.dart';
 import 'pages/login_page.dart';
 import 'pages/Buy_ticket.dart';
 import 'pages/my_ticket_page.dart';
-import 'pages/transaction_history_page.dart';
+import 'pages/history_page.dart';
 import 'pages/AccountPag.dart';
 import 'pages/Settings.dart';
 void main() {

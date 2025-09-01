@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'Buy_ticket.dart';
 
 class MyTicketPage extends StatefulWidget {
   const MyTicketPage({super.key});
@@ -11,6 +12,21 @@ class _MyTicketPageState extends State<MyTicketPage> {
   String selectedTab = "using"; // "using" = Đang sử dụng, "unused" = Chưa sử dụng
   List<String> usingTickets = []; // sau này sẽ load từ backend
   List<String> unusedTickets = []; // sau này sẽ load từ backend
+
+  int _selectedIndex = 1; // index 1 = "Vé của tôi"
+
+  void _onItemTapped(int index) {
+    if (index == _selectedIndex) return;
+    setState(() => _selectedIndex = index);
+
+    if (index == 0) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const BuyTicketPage()),
+      );
+    }
+    // index 1 thì đang ở đây, không cần làm gì
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -103,18 +119,11 @@ class _MyTicketPageState extends State<MyTicketPage> {
                     },
                   ),
           ),
-
-          // Placeholder thanh menu dưới (giống ảnh có khung xám)
-          Container(
-            height: 60,
-            margin: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(30),
-            ),
-          )
         ],
       ),
+
+   
+    
     );
   }
 }

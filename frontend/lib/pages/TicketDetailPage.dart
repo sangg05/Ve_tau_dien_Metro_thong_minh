@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'payment_page.dart';
+
 class TicketDetailPage extends StatelessWidget {
   final int startIndex;
   final List<String> stations;
@@ -10,7 +11,7 @@ class TicketDetailPage extends StatelessWidget {
     required this.stations,
   });
 
-  // Tính giá vé: 6000đ cơ bản + 1000đ mỗi ga
+  // Giá vé = 6000đ cơ bản + 1000đ mỗi ga (theo khoảng cách tuyệt đối)
   int calculatePrice(int distance) {
     return 6000 + distance * 1000;
   }
@@ -19,39 +20,45 @@ class TicketDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     String startStation = stations[startIndex];
 
+    // Lấy danh sách ga trừ ga xuất phát
+    List<String> destStations = [
+      for (int i = 0; i < stations.length; i++)
+        if (i != startIndex) stations[i]
+    ];
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.green[200],
         title: Text("Vé lượt - Từ ga $startStation"),
       ),
       body: ListView.builder(
-        itemCount: stations.length - (startIndex + 1),
+        itemCount: destStations.length,
         itemBuilder: (context, i) {
-          String destStation = stations[startIndex + i + 1];
-          int price = calculatePrice(i + 1);
+          String destStation = destStations[i];
+          int distance = (stations.indexOf(destStation) - startIndex).abs();
+          int price = calculatePrice(distance);
+
           return Card(
             margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
             child: ListTile(
-  leading: const Icon(Icons.train, size: 32, color: Colors.blue),
-  title: Text("Đến ga $destStation"),
-  subtitle: Text("Giá: $price đ"),
-  onTap: () {
-    // Khi bấm vào sẽ chuyển sang trang thanh toán
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => PaymentPage(
-          startStation: startStation,
-          destStation: destStation,
-          price: price,
-        ),
-      ),
-    );
-  },
-),
+              leading: const Icon(Icons.train, size: 32, color: Colors.blue),
+              title: Text("Đến ga $destStation"),
+              subtitle: Text("Giá: $price đ"),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PaymentPage(
+                      startStation: startStation,
+                      destStation: destStation,
+                      price: price,
+                    ),
+                  ),
+                );
+              },
+            ),
           );
         },
-        
       ),
     );
   }

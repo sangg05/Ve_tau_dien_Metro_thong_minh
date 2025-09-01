@@ -14,6 +14,7 @@ class HomePage extends StatelessWidget {
       {"icon": Icons.login, "label": "Đăng nhập", "route": "/login"},
       {"icon": Icons.settings, "label": "Cài đặt", "route": "/settings"},
       {"icon": Icons.info, "label": "Giới thiệu", "route": "/about"},
+       {"icon": Icons.history, "label": "Lịch sử giao dịch", "route": "/History"},
     ];
 
     // Tin tức tạm
