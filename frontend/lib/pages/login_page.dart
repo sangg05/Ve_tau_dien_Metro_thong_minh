@@ -1,31 +1,32 @@
 import 'package:flutter/material.dart';
-import 'register_page.dart';
+
 // Màn hình đăng nhập
 class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Column(
-        children: [
-          // 1. Ảnh minh họa phía trên
-          SizedBox(
-            height: 300,
-            width: double.infinity,
-            child: Image.asset(
-              "assets/anh_nen.webp", // ảnh bạn đưa vào thư mục assets
-              fit: BoxFit.cover,
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // 1. Ảnh minh họa phía trên
+            SizedBox(
+              height: 300,
+              width: double.infinity,
+              child: Image.asset(
+                "assets/anh_nen.webp",
+                fit: BoxFit.cover,
+              ),
             ),
-          ),
 
-          // 2. Nội dung đăng nhập
-          Expanded(
-            child: Container(
+            // 2. Nội dung đăng nhập
+            Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: const BoxDecoration(
                 color: Colors.white,
-                borderRadius: const BorderRadius.only(
+                borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(25),
                   topRight: Radius.circular(25),
                 ),
@@ -54,54 +55,53 @@ class LoginPage extends StatelessWidget {
 
                   const SizedBox(height: 30),
 
-                  // Nút đăng nhập bằng Google
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      // Xử lý khi bấm nút
-                    },
-                    icon: Image.asset(
-                      "assets/logo_google.png", // logo Google
-                      height: 24,
-                    ),
-                    label: const Text(
-                      "Đăng nhập bằng Google",
-                      style: TextStyle(color: Colors.black),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      side: const BorderSide(color: Colors.black12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 12,
-                        horizontal: 20,
-                      ),
+                  // Ô nhập email
+                  const TextField(
+                    decoration: InputDecoration(
+                      labelText: "Email",
+                      border: OutlineInputBorder(),
                     ),
                   ),
 
-                  const Spacer(),
+                  const SizedBox(height: 20),
 
-                  // Dòng chữ "Đăng kí tài khoản?"
-                  // Dòng chữ "Đăng kí tài khoản?" có thể bấm
-                TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const Register_page()),
-                  );
-                },
-                child: const Text(
-                  "Đăng kí tài khoản?",
-                  style: TextStyle(fontSize: 14, color: Colors.blue),
-                ),
-              ),
-              const SizedBox(height: 20),
+                  // Ô nhập mật khẩu
+                  const TextField(
+                    obscureText: true,
+                    decoration: InputDecoration(
+                      labelText: "Mật khẩu",
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Nút đăng nhập
+                  ElevatedButton(
+                    onPressed: () {
+                      // Xử lý đăng nhập
+                    },
+                    child: const Text("Đăng nhập"),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Link đến trang đăng ký
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/register'); 
+                    },
+                    child: const Text(
+                      "Đăng kí tài khoản?",
+                      style: TextStyle(fontSize: 14, color: Colors.blue),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
                 ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
