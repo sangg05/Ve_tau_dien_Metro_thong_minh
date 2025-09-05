@@ -14,10 +14,7 @@ class LoginPage extends StatelessWidget {
             SizedBox(
               height: 300,
               width: double.infinity,
-              child: Image.asset(
-                "assets/anh_nen.webp",
-                fit: BoxFit.cover,
-              ),
+              child: Image.asset("assets/anh_nen.webp", fit: BoxFit.cover),
             ),
 
             // 2. Nội dung đăng nhập
@@ -56,26 +53,35 @@ class LoginPage extends StatelessWidget {
                   const SizedBox(height: 30),
 
                   // Ô nhập email
-                  const TextField(
+                  TextField(
                     decoration: InputDecoration(
+                      prefixIcon: const Icon(Icons.email),
                       labelText: "Email",
-                      border: OutlineInputBorder(),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey.shade100,
                     ),
                   ),
 
                   const SizedBox(height: 20),
 
                   // Ô nhập mật khẩu
-                  const TextField(
+                  TextField(
                     obscureText: true,
                     decoration: InputDecoration(
+                      prefixIcon: const Icon(Icons.lock),
                       labelText: "Mật khẩu",
-                      border: OutlineInputBorder(),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey.shade100,
                     ),
                   ),
-
-                  const SizedBox(height: 20),
-
+                  const SizedBox(height: 30),
+                  
                   // Nút đăng nhập
                   ElevatedButton(
                     onPressed: () {
@@ -89,7 +95,7 @@ class LoginPage extends StatelessWidget {
                   // Link đến trang đăng ký
                   TextButton(
                     onPressed: () {
-                      Navigator.pushNamed(context, '/register'); 
+                      Navigator.pushNamed(context, '/register');
                     },
                     child: const Text(
                       "Đăng kí tài khoản?",

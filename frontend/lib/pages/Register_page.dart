@@ -2,24 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http; // Import thư viện http
 import 'dart:convert'; // Import thư viện để mã hóa/giải mã JSON
 
-class Register_page extends StatefulWidget {
-  const Register_page({super.key});
+class RegisterPage extends StatefulWidget {
+  const RegisterPage({super.key});
 
   @override
-  State<Register_page> createState() => _Register_pageState();
+  State<RegisterPage> createState() => _RegisterPageState();
 }
 
-class _Register_pageState extends State<Register_page> {
-  // Tạo controller cho các trường nhập liệu
+class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  // Hàm xử lý đăng ký người dùng
   Future<void> _registerUser() async {
     final String url = 'http://10.0.2.2:8000/api/register/';
 
-    // Tạo dữ liệu gửi đi dưới dạng JSON
     final Map<String, dynamic> data = {
       'email': _emailController.text,
       'phone': _phoneController.text,
@@ -36,7 +33,6 @@ class _Register_pageState extends State<Register_page> {
       final responseData = json.decode(response.body);
 
       if (response.statusCode == 201) {
-        // Đăng ký thành công
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -45,17 +41,16 @@ class _Register_pageState extends State<Register_page> {
           ),
         );
       } else {
-        // Đăng ký thất bại, hiển thị lỗi từ Django
         String errorMessage =
             responseData['error'] ?? 'Có lỗi xảy ra, vui lòng thử lại.';
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Lỗi: $errorMessage')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi: $errorMessage')),
+        );
       }
     } catch (e) {
-      // Xử lý lỗi kết nối
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lỗi kết nối: Không thể kết nối tới máy chủ.')),
+        const SnackBar(
+            content: Text('Lỗi kết nối: Không thể kết nối tới máy chủ.')),
       );
     }
   }
@@ -75,105 +70,129 @@ class _Register_pageState extends State<Register_page> {
         child: Column(
           children: [
             // Banner
-            Container(
+            SizedBox(
               height: 250,
+              width: double.infinity,
+              child: Image.asset(
+                "assets/anh_nen.webp",
+                fit: BoxFit.cover,
+              ),
+            ),
+
+            // Nội dung form
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
               decoration: const BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage("assets/anh_nen.webp"),
-                  fit: BoxFit.cover,
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(25),
+                  topRight: Radius.circular(25),
                 ),
               ),
-            ),
-            const SizedBox(height: 20),
-            // Tiêu đề
-            const Text(
-              "Đăng Kí",
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 30),
-            // Ô nhập Email
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              child: TextField(
-                controller: _emailController,
-                decoration: InputDecoration(
-                  labelText: "Email",
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const SizedBox(height: 10),
+
+                  // Tiêu đề  
+                  const Text(
+                    "Đăng Kí",
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                   ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 15,
+                  const SizedBox(height: 30),
+
+                  const SizedBox(height: 30),
+
+                  // Ô nhập Email
+                  TextField(
+                    controller: _emailController,
+                    decoration: InputDecoration(
+                      prefixIcon: const Icon(Icons.email),
+                      labelText: "Email",
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey.shade100,
+                    ),
+                    keyboardType: TextInputType.emailAddress,
                   ),
-                ),
-                keyboardType: TextInputType.emailAddress,
-              ),
-            ),
-            // Ô nhập Số điện thoại
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              child: TextField(
-                controller: _phoneController,
-                decoration: InputDecoration(
-                  labelText: "Số điện thoại",
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30),
+
+                  const SizedBox(height: 20),
+
+                  // Ô nhập Số điện thoại
+                  TextField(
+                    controller: _phoneController,
+                    decoration: InputDecoration(
+                      prefixIcon: const Icon(Icons.phone),
+                      labelText: "Số điện thoại",
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey.shade100,
+                    ),
+                    keyboardType: TextInputType.phone,
                   ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 15,
+
+                  const SizedBox(height: 20),
+
+                  // Ô nhập Mật khẩu
+                  TextField(
+                    controller: _passwordController,
+                    obscureText: true,
+                    decoration: InputDecoration(
+                      prefixIcon: const Icon(Icons.lock),
+                      labelText: "Mật khẩu",
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey.shade100,
+                    ),
                   ),
-                ),
-                keyboardType: TextInputType.phone,
-              ),
-            ),
-            // Ô nhập Mật khẩu
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              child: TextField(
-                controller: _passwordController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: "Mật khẩu",
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30),
+
+                  const SizedBox(height: 30),
+
+                  // Nút Đăng ký
+                  SizedBox(
+                    height: 40,
+                    width: 180, 
+                    child: ElevatedButton(
+                      onPressed: _registerUser,
+                      style: ElevatedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                        backgroundColor:
+                            const Color.fromARGB(255, 167, 200, 226),
+                        foregroundColor: Colors.black,
+                      ),
+                      child: const Text(
+                        "Đăng ký",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
                   ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 15,
+
+                  const SizedBox(height: 20),
+
+                  // Link sang Login
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    child: const Text(
+                      "Đã có tài khoản? Đăng nhập",
+                      style: TextStyle(fontSize: 14, color: Colors.blue),
+                    ),
                   ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            // Nút Đăng kí
-            ElevatedButton(
-              onPressed: _registerUser, // Gọi hàm xử lý
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.pink.shade100,
-                foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 100,
-                  vertical: 15,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
-                ),
-              ),
-              child: const Text(
-                "Đăng kí",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-            ),
-            const SizedBox(height: 20),
-            // Link sang Login
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text(
-                "Đã có tài khoản? Đăng nhập",
-                style: TextStyle(fontSize: 14, color: Colors.blue),
+                  const SizedBox(height: 20),
+                ],
               ),
             ),
           ],
