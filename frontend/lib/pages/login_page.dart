@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import 'home_page.dart';
 // Màn hình đăng nhập
 class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
@@ -37,7 +37,11 @@ class LoginPage extends StatelessWidget {
                     child: IconButton(
                       icon: const Icon(Icons.arrow_back),
                       onPressed: () {
-                        Navigator.pop(context);
+                        Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (context) => const HomePage()),
+                      (route) => false, // Xóa tất cả route trước đó
+                    );
                       },
                     ),
                   ),

@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'Buy_ticket.dart'; 
+import 'transaction_history_page.dart'; 
+import 'home_page.dart';
 
 class MyTicketPage extends StatefulWidget {
   const MyTicketPage({super.key});
@@ -8,17 +11,18 @@ class MyTicketPage extends StatefulWidget {
 }
 
 class _MyTicketPageState extends State<MyTicketPage> {
-  String selectedTab = "using"; // "using" = Đang sử dụng, "unused" = Chưa sử dụng
-  List<String> usingTickets = []; // sau này sẽ load từ backend
-  List<String> unusedTickets = []; // sau này sẽ load từ backend
+  String selectedTab = "using";
+  int selectedBottomIndex = 1; // 0 = Mua vé, 1 = Vé của tôi, 2 = Lịch sử
+
+  List<String> usingTickets = ["Vé 1 ngày", "Vé tháng HSSV"];
+  List<String> unusedTickets = ["Vé 3 ngày"];
 
   @override
   Widget build(BuildContext context) {
-    // Danh sách vé theo tab
     List<String> tickets =
         selectedTab == "using" ? usingTickets : unusedTickets;
 
-    return Scaffold(
+     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.green[200],
         elevation: 0,
@@ -30,25 +34,17 @@ class _MyTicketPageState extends State<MyTicketPage> {
         leading: IconButton(
           icon: const Icon(Icons.home, color: Colors.black),
           onPressed: () {
-            Navigator.pop(context);
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const HomePage()),
+              (route) => false,
+            );
           },
         ),
-        actions: const [
-          Padding(
-            padding: EdgeInsets.only(right: 12),
-            child: Center(
-              child: Text(
-                "Hết hạn",
-                style: TextStyle(color: Colors.black),
-              ),
-            ),
-          )
-        ],
       ),
       body: Column(
         children: [
           const SizedBox(height: 12),
-
           // Tabbar custom
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -72,9 +68,7 @@ class _MyTicketPageState extends State<MyTicketPage> {
               ),
             ],
           ),
-
           const SizedBox(height: 20),
-
           // Danh sách vé hoặc thông báo rỗng
           Expanded(
             child: tickets.isEmpty
@@ -94,7 +88,8 @@ class _MyTicketPageState extends State<MyTicketPage> {
                         child: ListTile(
                           title: Text("Vé: $ticket"),
                           subtitle: const Text("Chi tiết vé..."),
-                          trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                          trailing:
+                              const Icon(Icons.arrow_forward_ios, size: 16),
                           onTap: () {
                             // TODO: mở chi tiết vé
                           },
@@ -103,16 +98,49 @@ class _MyTicketPageState extends State<MyTicketPage> {
                     },
                   ),
           ),
-
-          // Placeholder thanh menu dưới (giống ảnh có khung xám)
-          Container(
-            height: 60,
-            margin: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(30),
-            ),
-          )
+        ],
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: selectedBottomIndex,
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: Colors.green[700],
+        unselectedItemColor: Colors.grey,
+        iconSize: 22,
+        onTap: (index) {
+          if (index == selectedBottomIndex) return; // nếu bấm lại tab hiện tại thì bỏ qua
+          setState(() => selectedBottomIndex = index);
+          switch (index) {
+            case 0:
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const BuyTicketPage()),
+              );
+              break;
+            case 1:
+              // Vé của tôi, đang ở đây → không làm gì
+              break;
+            case 2:
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const TransactionHistoryPage()),
+              );
+              break;
+          }
+        },
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.confirmation_number),
+            label: "Mua vé",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.receipt_long),
+            label: "Vé của tôi",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.history),
+            label: "Lịch sử",
+          ),
         ],
       ),
     );
