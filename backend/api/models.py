@@ -107,3 +107,5 @@ class FraudLog(models.Model):
 
     def __str__(self):
         return f"Fraud {self.fraud_id} - {'Handled' if self.handled else 'Pending'}"
+    
+    
