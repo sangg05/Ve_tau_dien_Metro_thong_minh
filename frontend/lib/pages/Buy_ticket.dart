@@ -3,6 +3,8 @@ import 'TicketDetailPage.dart';
 import 'my_ticket_page.dart';
 import 'transaction_history_page.dart';
 import 'home_page.dart';
+import 'payment_page.dart'; // import thêm PaymentPage
+
 class BuyTicketPage extends StatelessWidget {
   const BuyTicketPage({super.key});
 
@@ -117,76 +119,63 @@ class BuyTicketPage extends StatelessWidget {
       ),
 
       // 👉 Thanh navigation nhỏ gọn ở dưới
-          bottomNavigationBar: BottomNavigationBar(
-          currentIndex: 0,
-          type: BottomNavigationBarType.fixed,
-          selectedItemColor: Colors.green[700],
-          unselectedItemColor: Colors.grey,
-          iconSize: 22,
-          onTap: (index) {
-            switch (index) {
-              case 0:
-                // Mua vé, hiện tại đang ở đây, không cần làm gì
-                break;
-              case 1:
-                // Vé của tôi
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => MyTicketPage()),
-                );
-                break;
-              case 2:
-                // Lịch sử
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => TransactionHistoryPage()),
-                );
-                break;
-            }
-          },
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.confirmation_number),
-              label: "Mua vé",
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.receipt_long),
-              label: "Vé của tôi",
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.history),
-              label: "Lịch sử",
-            ),
-          ],
-        ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: 0,
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: Colors.green[700],
+        unselectedItemColor: Colors.grey,
+        iconSize: 22,
+        onTap: (index) {
+          switch (index) {
+            case 0:
+              // Mua vé, hiện tại đang ở đây
+              break;
+            case 1:
+              // Vé của tôi
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => MyTicketPage()),
+              );
+              break;
+            case 2:
+              // Lịch sử
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => TransactionHistoryPage()),
+              );
+              break;
+          }
+        },
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.confirmation_number),
+            label: "Mua vé",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.receipt_long),
+            label: "Vé của tôi",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.history),
+            label: "Lịch sử",
+          ),
+        ],
+      ),
     );
   }
 
-  // Widget card vé (bấm được)
+  // Widget card vé (bấm được → sang PaymentPage)
   Widget _ticketCard(BuildContext context, String title, int price) {
     return InkWell(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => TicketDetailPage(
-              startIndex: 0, // mặc định từ ga đầu
-              stations: const [
-                "Bến Thành",
-                "Nhà hát Thành phố",
-                "Ba Son",
-                "Văn Thánh",
-                "Tân Cảng",
-                "Thảo Điền",
-                "An Phú",
-                "Rạch Chiếc",
-                "Phước Long",
-                "Bình Thái",
-                "Thủ Đức",
-                "Khu Công nghệ cao",
-                "Đại học Quốc gia",
-                "Bến xe Suối Tiên",
-              ],
+            builder: (context) => PaymentPage(
+              startStation: "Bến Thành", // mặc định ga đầu
+              destStation: "Bến xe Suối Tiên", // mặc định ga cuối
+              price: price,
             ),
           ),
         );
@@ -201,10 +190,11 @@ class BuyTicketPage extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.confirmation_number, size: 26, color: Colors.green),
+            const Icon(Icons.confirmation_number,
+                size: 26, color: Colors.green),
             const SizedBox(width: 12),
             Expanded(child: Text(title)),
-            Text("${price.toString()} đ",
+            Text("$price đ",
                 style: const TextStyle(fontWeight: FontWeight.bold)),
           ],
         ),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-class PaymentPage extends StatelessWidget {
+class PaymentPage extends StatefulWidget {
   final String startStation;
   final String destStation;
   final int price;
@@ -13,7 +13,92 @@ class PaymentPage extends StatelessWidget {
   });
 
   @override
+  State<PaymentPage> createState() => _PaymentPageState();
+}
+
+class _PaymentPageState extends State<PaymentPage> {
+  String? _selectedMethod;
+
+  void _choosePaymentMethod() async {
+    final method = await showModalBottomSheet<String>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(12),
+            child: Text(
+              "Chọn phương thức thanh toán",
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.phone_android, color: Colors.purple),
+            title: const Text("MoMo"),
+            onTap: () => Navigator.pop(context, "MoMo"),
+          ),
+          ListTile(
+            leading: const Icon(Icons.account_balance, color: Colors.blue),
+            title: const Text("Ngân hàng"),
+            onTap: () => Navigator.pop(context, "Ngân hàng"),
+          ),
+          const SizedBox(height: 10),
+        ],
+      ),
+    );
+
+    if (method != null) {
+      setState(() {
+        _selectedMethod = method;
+      });
+    }
+  }
+
+  void _processPayment() {
+    if (_selectedMethod == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Vui lòng chọn phương thức thanh toán!")),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Thanh toán thành công qua $_selectedMethod!")),
+    );
+    Navigator.pop(context);
+  }
+
+  Widget _buildPaymentMethodTile() {
+    if (_selectedMethod == null) {
+      return ListTile(
+        leading: const Icon(Icons.payment, color: Colors.grey),
+        title: const Text("Chọn phương thức thanh toán"),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+        onTap: _choosePaymentMethod,
+      );
+    }
+
+    return ListTile(
+      leading: Icon(
+        _selectedMethod == "MoMo" ? Icons.phone_android : Icons.account_balance,
+        color: _selectedMethod == "MoMo" ? Colors.purple : Colors.blue,
+      ),
+      title: Text(
+        _selectedMethod!,
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
+      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+      onTap: _choosePaymentMethod,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final price = widget.price;
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.green[200],
@@ -31,22 +116,13 @@ class PaymentPage extends StatelessWidget {
             // Phương thức thanh toán
             const Text("Phương thức thanh toán", style: TextStyle(fontSize: 16)),
             const SizedBox(height: 8),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: Colors.black,
-                minimumSize: const Size.fromHeight(40),
+            Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(8),
+                color: Colors.white,
               ),
-              onPressed: () {
-                // TODO: mở danh sách chọn phương thức
-              },
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text("Phương thức thanh toán"),
-                  Icon(Icons.arrow_forward_ios, size: 16),
-                ],
-              ),
+              child: _buildPaymentMethodTile(),
             ),
 
             const SizedBox(height: 20),
@@ -65,7 +141,7 @@ class PaymentPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("Địa điểm: $startStation → $destStation"),
+                  Text("Địa điểm: ${widget.startStation} → ${widget.destStation}"),
                   Text("Đơn giá: $price đ"),
                   const Text("Số lượng: 1"),
                   Text("Thành tiền: $price đ"),
@@ -112,11 +188,7 @@ class PaymentPage extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Thanh toán thành công!")),
-                  );
-                },
+                onPressed: _processPayment,
                 child: Text("Thanh toán: $price đ"),
               ),
             ),
