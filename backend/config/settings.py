@@ -79,7 +79,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'metro_db',       
         'USER': 'root',           
-        'PASSWORD': '@Hy20072005',
+        'PASSWORD': '27032005',
         'HOST': 'localhost',
         'PORT': '3306',          
     }

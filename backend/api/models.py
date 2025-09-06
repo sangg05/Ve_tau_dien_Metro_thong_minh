@@ -3,17 +3,19 @@ import uuid
 
 
 # BẢNG USERS
+from django.db import models
+import uuid
+
 class Users(models.Model):
     user_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     full_name = models.CharField(max_length=100)
-    email = models.EmailField(unique=True, max_length=100)
-    phone = models.CharField(max_length=20, null=True, blank=True)
-    user_password = models.CharField(max_length=255)
-    is_student = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
+    email = models.EmailField(unique=True)
+    phone = models.CharField(max_length=20, blank=True, null=True)
+    user_password = models.CharField(max_length=256)
 
     def __str__(self):
-        return self.full_name
+        return self.email
+
 
 
 # BẢNG STATION
