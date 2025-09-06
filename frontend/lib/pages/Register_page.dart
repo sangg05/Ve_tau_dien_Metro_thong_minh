@@ -14,6 +14,8 @@ class RegisterPage extends StatefulWidget {
 class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _phoneController =
+      TextEditingController(); // ✅ Controller số điện thoại
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
@@ -37,6 +39,15 @@ class _RegisterPageState extends State<RegisterPage> {
     return null;
   }
 
+  // Hàm validate số điện thoại
+  String? _validatePhone(String? value) {
+    if (value == null || value.isEmpty)
+      return 'Số điện thoại không được để trống';
+    final phoneRegex = RegExp(r'^(0[0-9]{9})$'); // Ví dụ: 10 số, bắt đầu bằng 0
+    if (!phoneRegex.hasMatch(value)) return 'Số điện thoại không hợp lệ';
+    return null;
+  }
+
   Future<void> _registerUser() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -44,6 +55,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
     final String email = _emailController.text.trim();
     final String fullName = _nameController.text.trim();
+    final String phone = _phoneController.text.trim();
     final String password = _passwordController.text;
     final String confirmPassword = _confirmPasswordController.text;
 
@@ -61,6 +73,7 @@ class _RegisterPageState extends State<RegisterPage> {
     final Map<String, dynamic> data = {
       'username': email,
       'full_name': fullName,
+      'phone': phone, // ✅ Gửi số điện thoại lên backend
       'password': password,
     };
 
@@ -82,6 +95,7 @@ class _RegisterPageState extends State<RegisterPage> {
         // Clear form
         _emailController.clear();
         _nameController.clear();
+        _phoneController.clear();
         _passwordController.clear();
         _confirmPasswordController.clear();
 
@@ -94,7 +108,6 @@ class _RegisterPageState extends State<RegisterPage> {
         );
       } else {
         String errorMessage = 'Có lỗi xảy ra, vui lòng thử lại';
-        // Nếu backend trả về errors từng field
         if (responseData['errors'] != null) {
           errorMessage = responseData['errors'].values
               .map((e) => e.join(', '))
@@ -122,6 +135,7 @@ class _RegisterPageState extends State<RegisterPage> {
   void dispose() {
     _emailController.dispose();
     _nameController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -160,6 +174,16 @@ class _RegisterPageState extends State<RegisterPage> {
                 validator: (value) => value == null || value.isEmpty
                     ? 'Họ tên không được để trống'
                     : null,
+              ),
+              const SizedBox(height: 20),
+              TextFormField(
+                controller: _phoneController,
+                decoration: const InputDecoration(
+                  labelText: "Số điện thoại",
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.phone,
+                validator: _validatePhone,
               ),
               const SizedBox(height: 20),
               TextFormField(
@@ -206,7 +230,7 @@ class _RegisterPageState extends State<RegisterPage> {
                         ),
                 ),
               ),
-               const SizedBox(height: 20),
+              const SizedBox(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -215,7 +239,9 @@ class _RegisterPageState extends State<RegisterPage> {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const LoginPage()),
+                        MaterialPageRoute(
+                          builder: (context) => const LoginPage(),
+                        ),
                       );
                     },
                     child: const Text(
