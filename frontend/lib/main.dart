@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'pages/home_page.dart';
+import 'pages/Register_page.dart';
 import 'pages/login_page.dart';
-import 'pages/Register_page.dart'; // Import trang đăng ký
+import 'pages/otp_page.dart';
 import 'pages/Buy_ticket.dart';
 import 'pages/my_ticket_page.dart';
 import 'pages/transaction_history_page.dart';
