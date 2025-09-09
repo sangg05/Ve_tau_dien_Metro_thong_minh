@@ -4,6 +4,7 @@ from rest_framework.decorators import api_view
 from django.contrib.auth.hashers import check_password
 from django.utils import timezone
 from django.db import transaction as db_transaction
+
 from .models import Users, Station, Transactions, Ticket, CheckInOut, FraudLog
 from .serializers import (
     UserSerializer, UserRegisterSerializer,
@@ -17,38 +18,29 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = Users.objects.all()
     serializer_class = UserSerializer
 
-
 class StationViewSet(viewsets.ModelViewSet):
     queryset = Station.objects.all()
     serializer_class = StationSerializer
-
 
 class TransactionViewSet(viewsets.ModelViewSet):
     queryset = Transactions.objects.all()
     serializer_class = TransactionSerializer
 
-
 class TicketViewSet(viewsets.ModelViewSet):
     queryset = Ticket.objects.all()
     serializer_class = TicketSerializer
-
 
 class CheckInOutViewSet(viewsets.ModelViewSet):
     queryset = CheckInOut.objects.all()
     serializer_class = CheckInOutSerializer
 
-
 class FraudLogViewSet(viewsets.ModelViewSet):
     queryset = FraudLog.objects.all()
     serializer_class = FraudLogSerializer
 
-
 # ==== AUTH & CUSTOM ACTIONS ====
 @api_view(['POST'])
 def register(request):
-    """
-    Xử lý yêu cầu đăng ký tài khoản người dùng mới.
-    """
     serializer = UserRegisterSerializer(data=request.data)
     if serializer.is_valid():
         user = serializer.save()
@@ -56,38 +48,25 @@ def register(request):
             "message": "Đăng ký thành công!",
             "user": UserSerializer(user).data
         }, status=status.HTTP_201_CREATED)
-    return Response({
-        "error": "Dữ liệu không hợp lệ",
-        "chi_tiet": serializer.errors
-    }, status=status.HTTP_400_BAD_REQUEST)
-
+    return Response({"error": "Dữ liệu không hợp lệ", "chi_tiet": serializer.errors},
+                    status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['POST'])
 def login(request):
-    """
-    Xử lý yêu cầu đăng nhập người dùng.
-    """
     email = request.data.get('email')
     password = request.data.get('password')
-
     try:
         user = Users.objects.get(email=email)
         if check_password(password, user.user_password):
-            return Response({
-                "message": "Đăng nhập thành công!",
-                "user": UserSerializer(user).data
-            }, status=status.HTTP_200_OK)
-        else:
-            return Response({"error": "Mật khẩu không đúng!"}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({"message": "Đăng nhập thành công!", "user": UserSerializer(user).data},
+                            status=status.HTTP_200_OK)
+        return Response({"error": "Mật khẩu không đúng!"}, status=status.HTTP_401_UNAUTHORIZED)
     except Users.DoesNotExist:
-        return Response({"error": "Không tìm thấy người dùng với email này!"}, status=status.HTTP_404_NOT_FOUND)
-
+        return Response({"error": "Không tìm thấy người dùng với email này!"},
+                        status=status.HTTP_404_NOT_FOUND)
 
 @api_view(['POST'])
 def purchase_ticket(request):
-    """
-    Xử lý việc mua vé: tạo transaction + ticket cho user.
-    """
     try:
         with db_transaction.atomic():
             user_id = request.data.get('user_id')
@@ -98,7 +77,6 @@ def purchase_ticket(request):
 
             user = Users.objects.get(user_id=user_id)
 
-            # Tạo giao dịch
             trans = Transactions.objects.create(
                 user=user,
                 amount=price,
@@ -106,14 +84,12 @@ def purchase_ticket(request):
                 method='Other'
             )
 
-            # Xác định thời gian hết hạn vé
             valid_to = None
             if ticket_type == 'Month':
                 valid_to = timezone.now() + timezone.timedelta(days=30)
-            elif ticket_type.startswith('Day'):
+            elif ticket_type and ticket_type.startswith('Day'):
                 valid_to = timezone.now() + timezone.timedelta(days=1)
 
-            # Tạo vé
             ticket = Ticket.objects.create(
                 user=user,
                 transaction=trans,
@@ -125,19 +101,14 @@ def purchase_ticket(request):
                 end_station_id=end_station,
             )
 
-            return Response({
-                "message": "Mua vé thành công!",
-                "ticket": TicketSerializer(ticket).data
-            }, status=status.HTTP_201_CREATED)
+            return Response({"message": "Mua vé thành công!", "ticket": TicketSerializer(ticket).data},
+                            status=status.HTTP_201_CREATED)
     except Exception as e:
-        return Response({"error": f"Lỗi khi mua vé: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
-
+        return Response({"error": f"Lỗi khi mua vé: {str(e)}"},
+                        status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['POST'])
 def check_in(request):
-    """
-    Xử lý Check-in / Check-out vé tại trạm.
-    """
     try:
         ticket_id = request.data.get('ticket_id')
         user_id = request.data.get('user_id')
@@ -148,30 +119,20 @@ def check_in(request):
         user = Users.objects.get(user_id=user_id)
         station = Station.objects.get(station_id=station_id)
 
-        # Kiểm tra hợp lệ
         if ticket.user != user or ticket.ticket_status != 'Active':
             fraud = FraudLog.objects.create(
-                user=user,
-                ticket=ticket,
+                user=user, ticket=ticket,
                 descriptions="Người dùng cố gắng check-in/out bằng vé không hợp lệ"
             )
-            return Response({
-                "error": "Vé không hợp lệ!",
-                "fraud_id": str(fraud.fraud_id)
-            }, status=status.HTTP_403_FORBIDDEN)
+            return Response({"error": "Vé không hợp lệ!", "fraud_id": str(fraud.fraud_id)},
+                            status=status.HTTP_403_FORBIDDEN)
 
-        # Nếu hợp lệ thì lưu lượt check-in/out
         check = CheckInOut.objects.create(
-            ticket=ticket,
-            user=user,
-            station=station,
-            direction=direction
+            ticket=ticket, user=user, station=station, direction=direction
         )
 
-        return Response({
-            "message": f"Check-{direction} thành công!",
-            "chi_tiet": CheckInOutSerializer(check).data
-        }, status=status.HTTP_201_CREATED)
-
+        return Response({"message": f"Check-{direction} thành công!", "chi_tiet": CheckInOutSerializer(check).data},
+                        status=status.HTTP_201_CREATED)
     except Exception as e:
-        return Response({"error": f"Lỗi khi check-in/out: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": f"Lỗi khi check-in/out: {str(e)}"},
+                        status=status.HTTP_400_BAD_REQUEST)

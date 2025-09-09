@@ -1,22 +1,18 @@
 from django.db import models
 import uuid
 
-
-# BẢNG USERS
+# ================== USERS ==================
 class Users(models.Model):
     user_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     full_name = models.CharField(max_length=100)
-    email = models.EmailField(unique=True, max_length=100)
-    phone = models.CharField(max_length=20, null=True, blank=True)
-    user_password = models.CharField(max_length=255)
-    is_student = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
+    email = models.EmailField(unique=True)
+    phone = models.CharField(max_length=20, blank=True, null=True)
+    user_password = models.CharField(max_length=256)
 
     def __str__(self):
-        return self.full_name
+        return self.email
 
-
-# BẢNG STATION
+# ================== STATION ==================
 class Station(models.Model):
     station_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     station_name = models.CharField(max_length=100)
@@ -25,19 +21,10 @@ class Station(models.Model):
     def __str__(self):
         return self.station_name
 
-
-# BẢNG TRANSACTIONS
+# ================== TRANSACTIONS ==================
 class Transactions(models.Model):
-    TRANSACTION_STATUS = [
-        ('Success', 'Success'),
-        ('Failed', 'Failed'),
-    ]
-    METHOD_CHOICES = [
-        ('QR', 'QR'),
-        ('NFC', 'NFC'),
-        ('Wallet', 'Wallet'),
-        ('Other', 'Other'),
-    ]
+    TRANSACTION_STATUS = [('Success', 'Success'), ('Failed', 'Failed')]
+    METHOD_CHOICES = [('QR', 'QR'), ('NFC', 'NFC'), ('Wallet', 'Wallet'), ('Other', 'Other')]
 
     transaction_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(Users, on_delete=models.CASCADE)
@@ -49,19 +36,10 @@ class Transactions(models.Model):
     def __str__(self):
         return f"{self.transaction_id} - {self.transaction_status}"
 
-
-# BẢNG TICKET
+# ================== TICKET ==================
 class Ticket(models.Model):
-    TICKET_TYPE = [
-        ('Month', 'Month'),
-        ('Day_All', 'Day_All'),
-        ('Day_Point_To_Point', 'Day_Point_To_Point'),
-    ]
-    TICKET_STATUS = [
-        ('Active', 'Active'),
-        ('Expired', 'Expired'),
-        ('Blocked', 'Blocked'),
-    ]
+    TICKET_TYPE = [('Month', 'Month'), ('Day_All', 'Day_All'), ('Day_Point_To_Point', 'Day_Point_To_Point')]
+    TICKET_STATUS = [('Active', 'Active'), ('Expired', 'Expired'), ('Blocked', 'Blocked')]
 
     ticket_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(Users, on_delete=models.CASCADE)
@@ -77,13 +55,9 @@ class Ticket(models.Model):
     def __str__(self):
         return f"{self.ticket_id} - {self.ticket_status}"
 
-
-# BẢNG CHECK IN/OUT
+# ================== CHECK IN/OUT ==================
 class CheckInOut(models.Model):
-    DIRECTION = [
-        ('In', 'In'),
-        ('Out', 'Out'),
-    ]
+    DIRECTION = [('In', 'In'), ('Out', 'Out')]
 
     check_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE)
@@ -95,8 +69,7 @@ class CheckInOut(models.Model):
     def __str__(self):
         return f"{self.check_id} - {self.direction}"
 
-
-# BẢNG FRAUDLOG
+# ================== FRAUD LOG ==================
 class FraudLog(models.Model):
     fraud_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(Users, on_delete=models.CASCADE)
@@ -107,5 +80,3 @@ class FraudLog(models.Model):
 
     def __str__(self):
         return f"Fraud {self.fraud_id} - {'Handled' if self.handled else 'Pending'}"
-    
-    

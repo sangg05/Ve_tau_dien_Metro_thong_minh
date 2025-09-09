@@ -21,9 +21,7 @@ class _SettingsPageState extends State<SettingsPage> {
         backgroundColor: Colors.green[300],
         leading: IconButton(
           icon: const Icon(Icons.home),
-          onPressed: () {
-            Navigator.pushNamed(context, "/");
-          },
+          onPressed: () => Navigator.pushNamed(context, "/home"),
         ),
       ),
       body: SafeArea(
@@ -40,28 +38,24 @@ class _SettingsPageState extends State<SettingsPage> {
                     leading: const Icon(Icons.notifications),
                     title: const Text("Thông báo"),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const NotificationSettingsPage(),
-                        ),
-                      );
-                    },
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const NotificationSettingsPage(),
+                      ),
+                    ),
                   ),
                   const Divider(height: 1),
                   ListTile(
                     leading: const Icon(Icons.lock),
                     title: const Text("Quyền truy cập"),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const PermissionSettingsPage(),
-                        ),
-                      );
-                    },
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const PermissionSettingsPage(),
+                      ),
+                    ),
                   ),
                   const Divider(height: 1),
                   ListTile(
@@ -78,14 +72,11 @@ class _SettingsPageState extends State<SettingsPage> {
                       final selectedLang = await Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const LanguageSettingsPage(),
+                          builder: (_) => const LanguageSettingsPage(),
                         ),
                       );
-
                       if (selectedLang != null && mounted) {
-                        setState(() {
-                          currentLanguage = selectedLang;
-                        });
+                        setState(() => currentLanguage = selectedLang);
                       }
                     },
                   ),
@@ -97,13 +88,10 @@ class _SettingsPageState extends State<SettingsPage> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: ListTile(
-                leading: const Icon(Icons.info_outline),
-                title: const Text("Phiên bản ứng dụng"),
-                trailing: const Text(
-                  "1.4.3",
-                  style: TextStyle(color: Colors.blue),
-                ),
+              child: const ListTile(
+                leading: Icon(Icons.info_outline),
+                title: Text("Phiên bản ứng dụng"),
+                trailing: Text("1.4.3", style: TextStyle(color: Colors.blue)),
               ),
             ),
           ],

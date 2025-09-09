@@ -1,17 +1,36 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'api.dart';
 
 class ApiService {
-  // Dùng localhost nếu chạy desktop/web
-final String baseUrl = "http://127.0.0.1:8000";
+  static Future<http.Response> register({
+    required String fullName,
+    required String email,
+    required String phone,
+    required String password,
+  }) {
+    final url = Uri.parse('$baseUrl/api/register/');
+    return http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'full_name': fullName,
+        'email': email,
+        'phone': phone,
+        'password': password,
+      }),
+    );
+  }
 
-  Future<List<dynamic>> getUsers() async {
-    final response = await http.get(Uri.parse('$baseUrl/users'));
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception("Failed to load users");
-    }
+  static Future<http.Response> login({
+    required String email,
+    required String password,
+  }) {
+    final url = Uri.parse('$baseUrl/api/auth/login/');
+    return http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email, 'password': password}),
+    );
   }
 }
-

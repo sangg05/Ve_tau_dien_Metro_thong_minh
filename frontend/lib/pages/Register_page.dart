@@ -1,201 +1,185 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http; // Import thư viện http
-import 'dart:convert'; // Import thư viện để mã hóa/giải mã JSON
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import '../api.dart';
+import 'login_page.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
-
   @override
   State<RegisterPage> createState() => _RegisterPageState();
 }
 
 class _RegisterPageState extends State<RegisterPage> {
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
+  final _email = TextEditingController();
+  final _name = TextEditingController();
+  final _phone = TextEditingController();
+  final _pass = TextEditingController();
+  final _pass2 = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  bool _loading = false;
 
-  Future<void> _registerUser() async {
-    final String url = 'http://10.0.2.2:8000/api/register/';
-
-    final Map<String, dynamic> data = {
-      'email': _emailController.text,
-      'phone': _phoneController.text,
-      'password': _passwordController.text,
-    };
-
-    try {
-      final http.Response response = await http.post(
-        Uri.parse(url),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(data),
-      );
-
-      final responseData = json.decode(response.body);
-
-      if (response.statusCode == 201) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Đăng ký thành công! User ID: ${responseData['user_id']}',
-            ),
-          ),
-        );
-      } else {
-        String errorMessage =
-            responseData['error'] ?? 'Có lỗi xảy ra, vui lòng thử lại.';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $errorMessage')),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Lỗi kết nối: Không thể kết nối tới máy chủ.')),
-      );
-    }
+  String? _vEmail(String? v) {
+    if (v == null || v.isEmpty) return 'Email không được để trống';
+    final r = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    if (!r.hasMatch(v)) return 'Email không hợp lệ';
+    return null;
   }
 
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _phoneController.dispose();
-    _passwordController.dispose();
-    super.dispose();
+  String? _vPass(String? v) =>
+      (v == null || v.length < 6) ? 'Tối thiểu 6 ký tự' : null;
+  String? _vPhone(String? v) {
+    if (v == null || v.isEmpty) return 'Số điện thoại không được để trống';
+    return RegExp(r'^0\d{9}$').hasMatch(v)
+        ? null
+        : 'Số điện thoại không hợp lệ';
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_pass.text != _pass2.text) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Mật khẩu không khớp')));
+      return;
+    }
+
+    setState(() => _loading = true);
+    final uri = Uri.parse('$baseUrl/api/register/');
+    final body = jsonEncode({
+      'full_name': _name.text.trim(),
+      'email': _email.text.trim(),
+      'phone': _phone.text.trim(),
+      'password': _pass.text,
+    });
+
+    try {
+      final res = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: body,
+      );
+      Map<String, dynamic> data = {};
+      try {
+        data = jsonDecode(res.body);
+      } catch (_) {}
+
+      if (res.statusCode == 201) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(data['message']?.toString() ?? 'Đăng ký thành công!'),
+          ),
+        );
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginPage()),
+        );
+      } else {
+        final msg =
+            data['chi_tiet']?.toString() ??
+            data['error']?.toString() ??
+            data['message']?.toString() ??
+            'Có lỗi xảy ra (HTTP ${res.statusCode})';
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(msg)));
+      }
+    } catch (_) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Lỗi kết nối tới server')));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SingleChildScrollView(
-        child: Column(
-          children: [
-            // Banner
-            SizedBox(
-              height: 250,
-              width: double.infinity,
-              child: Image.asset(
-                "assets/anh_nen.webp",
-                fit: BoxFit.cover,
+        padding: const EdgeInsets.all(20),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              const SizedBox(height: 80),
+              const Text(
+                'Đăng Ký',
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
               ),
-            ),
-
-            // Nội dung form
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(25),
-                  topRight: Radius.circular(25),
+              const SizedBox(height: 40),
+              TextFormField(
+                controller: _email,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  border: OutlineInputBorder(),
+                ),
+                validator: _vEmail,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _name,
+                decoration: const InputDecoration(
+                  labelText: 'Họ và tên',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) => v == null || v.isEmpty
+                    ? 'Họ tên không được để trống'
+                    : null,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _phone,
+                decoration: const InputDecoration(
+                  labelText: 'Số điện thoại',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.phone,
+                validator: _vPhone,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _pass,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Mật khẩu',
+                  border: OutlineInputBorder(),
+                ),
+                validator: _vPass,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _pass2,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Nhập lại mật khẩu',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) => v == null || v.isEmpty
+                    ? 'Vui lòng nhập lại mật khẩu'
+                    : null,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _loading ? null : _submit,
+                  child: _loading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text('Đăng ký'),
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 10),
-
-                  // Tiêu đề  
-                  const Text(
-                    "Đăng Kí",
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 30),
-
-                  const SizedBox(height: 30),
-
-                  // Ô nhập Email
-                  TextField(
-                    controller: _emailController,
-                    decoration: InputDecoration(
-                      prefixIcon: const Icon(Icons.email),
-                      labelText: "Email",
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      filled: true,
-                      fillColor: Colors.grey.shade100,
-                    ),
-                    keyboardType: TextInputType.emailAddress,
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Ô nhập Số điện thoại
-                  TextField(
-                    controller: _phoneController,
-                    decoration: InputDecoration(
-                      prefixIcon: const Icon(Icons.phone),
-                      labelText: "Số điện thoại",
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      filled: true,
-                      fillColor: Colors.grey.shade100,
-                    ),
-                    keyboardType: TextInputType.phone,
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Ô nhập Mật khẩu
-                  TextField(
-                    controller: _passwordController,
-                    obscureText: true,
-                    decoration: InputDecoration(
-                      prefixIcon: const Icon(Icons.lock),
-                      labelText: "Mật khẩu",
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      filled: true,
-                      fillColor: Colors.grey.shade100,
-                    ),
-                  ),
-
-                  const SizedBox(height: 30),
-
-                  // Nút Đăng ký
-                  SizedBox(
-                    height: 40,
-                    width: 180, 
-                    child: ElevatedButton(
-                      onPressed: _registerUser,
-                      style: ElevatedButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(25),
-                        ),
-                        backgroundColor:
-                            const Color.fromARGB(255, 167, 200, 226),
-                        foregroundColor: Colors.black,
-                      ),
-                      child: const Text(
-                        "Đăng ký",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Link sang Login
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                    child: const Text(
-                      "Đã có tài khoản? Đăng nhập",
-                      style: TextStyle(fontSize: 14, color: Colors.blue),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                ],
+              const SizedBox(height: 20),
+              TextButton(
+                onPressed: () => Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginPage()),
+                ),
+                child: const Text('Đã có tài khoản? Đăng nhập'),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
