@@ -1,5 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from . import views
 from .views import (
     UserViewSet, StationViewSet, TransactionViewSet,
     TicketViewSet, CheckInOutViewSet, FraudLogViewSet,
@@ -20,4 +21,5 @@ urlpatterns = [
     path('auth/login/', login, name='login'),
     path('tickets/purchase/', purchase_ticket, name='purchase_ticket'),
     path('tickets/check-in/', check_in, name='check_in'),
+    path('scan/', views.scan_record, name='scan_record'),
 ]

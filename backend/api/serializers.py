@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.hashers import make_password
 from .models import Users, Station, Transactions, Ticket, CheckInOut, FraudLog
-
+from .models import Ticket, ScanRecord, Users, Station, Transactions
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = Users
@@ -46,3 +46,15 @@ class FraudLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = FraudLog
         fields = '__all__'
+class ScanRecordSerializer(serializers.ModelSerializer):
+    ticket = TicketSerializer(read_only=True)
+
+    class Meta:
+        model = ScanRecord
+        fields = [
+            "id",
+            "ticket",
+            "card_uid",
+            "station",
+            "scan_time",
+        ]
