@@ -1,3 +1,5 @@
+import '../session.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -50,6 +52,21 @@ class _LoginPageState extends State<LoginPage> {
       } catch (_) {}
 
       if (res.statusCode == 200) {
+        // LẤY THÔNG TIN USER TỪ RESPONSE
+        final Map<String, dynamic>? user = (data['user'] is Map)
+            ? (data['user'] as Map).cast<String, dynamic>()
+            : null;
+
+        // KIỂM TRA & LƯU user_id
+        final userId = user?['user_id']?.toString();
+        if (userId == null || userId.isEmpty) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Không nhận được user_id từ server')),
+          );
+          return;
+        }
+        await Session.saveUserId(userId);
         if (!mounted) return;
         Navigator.of(
           context,

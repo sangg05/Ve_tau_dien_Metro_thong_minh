@@ -46,3 +46,5 @@ class FraudLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = FraudLog
         fields = '__all__'
+        
+

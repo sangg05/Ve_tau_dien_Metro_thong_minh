@@ -1,7 +1,12 @@
 from django.db import models
 import uuid
 
+
 # ================== USERS ==================
+# BẢNG USERS
+from django.db import models
+import uuid
+
 class Users(models.Model):
     user_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     full_name = models.CharField(max_length=100)
