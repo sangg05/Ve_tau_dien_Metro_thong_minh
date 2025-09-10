@@ -34,21 +34,20 @@ class Station(models.Model):
     def __str__(self):
         return self.station_name
 
-# ==========================
-# BẢNG TRANSACTIONS
-# ==========================
+# ================== TRANSACTIONS ==================
 class Transactions(models.Model):
+    TRANSACTION_STATUS = [('Success', 'Success'), ('Failed', 'Failed')]
+    METHOD_CHOICES = [('QR', 'QR'), ('NFC', 'NFC'), ('Wallet', 'Wallet'), ('Other', 'Other')]
+
     transaction_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(Users, on_delete=models.CASCADE)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     transaction_time = models.DateTimeField(default=timezone.now)
 
     def __str__(self):
-        return f"{self.transaction_id} - {self.user.full_name} - {self.amount}"
+        return f"{self.transaction_id} - {self.transaction_status}"
 
-# ==========================
-# BẢNG TICKET
-# ==========================
+# ================== TICKET ==================
 class Ticket(models.Model):
     TICKET_TYPE = [('Month', 'Month'), ('Day_All', 'Day_All'), ('Day_Point_To_Point', 'Day_Point_To_Point')]
     TICKET_STATUS = [('Active', 'Active'), ('Expired', 'Expired'), ('Blocked', 'Blocked')]

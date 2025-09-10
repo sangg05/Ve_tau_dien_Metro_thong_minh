@@ -136,7 +136,6 @@ def check_in(request):
     except Exception as e:
         return Response({"error": f"Lỗi khi check-in/out: {str(e)}"},
                         status=status.HTTP_400_BAD_REQUEST)
-    
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
