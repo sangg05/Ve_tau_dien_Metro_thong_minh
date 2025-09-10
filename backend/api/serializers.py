@@ -32,11 +32,6 @@ class TransactionSerializer(serializers.ModelSerializer):
         model = Transactions
         fields = '__all__'
 
-class TicketSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Ticket
-        fields = '__all__'
-
 class CheckInOutSerializer(serializers.ModelSerializer):
     class Meta:
         model = CheckInOut
@@ -45,4 +40,32 @@ class CheckInOutSerializer(serializers.ModelSerializer):
 class FraudLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = FraudLog
+        fields = '__all__'
+
+from rest_framework import serializers
+from .models import Ticket, Station, Users
+
+class TicketSerializer(serializers.ModelSerializer):
+    user = serializers.CharField(source='user.full_name')
+    start_station = serializers.CharField(source='start_station.station_name')
+    end_station = serializers.CharField(source='end_station.station_name')
+
+    class Meta:
+        model = Ticket
+        fields = [
+            'ticket_id',
+            'ticket_type',
+            'user',
+            'start_station',
+            'end_station',
+            'valid_from',
+            'valid_to',
+            'ticket_status',
+        ]
+from rest_framework import serializers
+from .models import ScanRecord
+
+class ScanRecordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ScanRecord
         fields = '__all__'

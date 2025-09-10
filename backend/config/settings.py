@@ -4,7 +4,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'django-insecure-+t0qr!t80_x$m*=hg*sgsarc)8=p8b!wy+wsv4j%l93t9ubm2i'
 DEBUG = True
-ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
+ALLOWED_HOSTS = ["*"]
+
+
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -53,7 +55,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'metro_db',
         'USER': 'root',
-        'PASSWORD': 'Huong@2111',
+        'PASSWORD': '@Hy20072005',
         'HOST': 'localhost',
         'PORT': '3306',
     }

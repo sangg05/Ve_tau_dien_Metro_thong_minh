@@ -11,7 +11,10 @@ class Users(models.Model):
 
     def __str__(self):
         return self.email
-
+     #viết method để lấy ticket active
+    def get_active_ticket(self):
+        from .models import Ticket  # import tại đây để tránh lỗi vòng lặp
+        return Ticket.objects.filter(user=self, ticket_status="Active").first()
 # ================== STATION ==================
 class Station(models.Model):
     station_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -51,6 +54,7 @@ class Ticket(models.Model):
     ticket_status = models.CharField(max_length=10, choices=TICKET_STATUS)
     start_station = models.ForeignKey(Station, on_delete=models.SET_NULL, null=True, related_name="start_station")
     end_station = models.ForeignKey(Station, on_delete=models.SET_NULL, null=True, related_name="end_station")
+    card_uid = models.CharField(max_length=100, unique=True, null=True, blank=True)
 
     def __str__(self):
         return f"{self.ticket_id} - {self.ticket_status}"
@@ -80,3 +84,16 @@ class FraudLog(models.Model):
 
     def __str__(self):
         return f"Fraud {self.fraud_id} - {'Handled' if self.handled else 'Pending'}"
+from django.utils import timezone
+class ScanRecord(models.Model):
+    ticket = models.ForeignKey("Ticket", on_delete=models.SET_NULL, null=True, blank=True)
+    card_uid = models.CharField(max_length=50)
+    station = models.CharField(max_length=100)
+    scan_time = models.DateTimeField(default=timezone.now)
+
+    def __str__(self):
+        if self.ticket:
+            return f"Scan {self.card_uid} tại {self.station} (Ticket {self.ticket.ticket_id})"
+        return f"Scan {self.card_uid} tại {self.station} (No Ticket)"
+
+

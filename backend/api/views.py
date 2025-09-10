@@ -136,3 +136,70 @@ def check_in(request):
     except Exception as e:
         return Response({"error": f"Lỗi khi check-in/out: {str(e)}"},
                         status=status.HTTP_400_BAD_REQUEST)
+
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.utils import timezone
+import json
+
+from .models import ScanRecord, Ticket
+
+
+@csrf_exempt
+def scan_record(request):
+    if request.method == "POST":
+        try:
+            # Lấy dữ liệu JSON từ ESP32 gửi về
+            data = json.loads(request.body.decode("utf-8"))
+            card_uid = data.get("card_uid")
+            station = data.get("station")
+
+            if not card_uid or not station:
+                return JsonResponse(
+                    {"status": "error", "message": "Thiếu card_uid hoặc station"},
+                    status=400,
+                )
+
+            # Tìm vé có card_uid đang Active
+            ticket = Ticket.objects.filter(
+                card_uid=card_uid, ticket_status="Active"
+            ).first()
+
+            # Lưu bản ghi quét
+            scan = ScanRecord.objects.create(
+                card_uid=card_uid,
+                station=station,
+                scan_time=timezone.now(),
+                ticket=ticket if ticket else None,
+            )
+
+            return JsonResponse(
+                {
+                    "status": "success",
+                    "scan_id": scan.id,
+                    "ticket_found": True if ticket else False,
+                    "station": station,
+                },
+                status=201,
+            )
+
+        except Exception as e:
+            return JsonResponse({"status": "error", "message": str(e)}, status=400)
+
+    elif request.method == "GET":
+        # Trả về danh sách các lần quét (dùng để test)
+        scans = ScanRecord.objects.all().order_by("-scan_time")[:20]
+        data = []
+        for s in scans:
+            data.append(
+                {
+                    "id": s.id,
+                    "card_uid": s.card_uid,
+                    "station": s.station,
+                    "scan_time": s.scan_time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "ticket_id": str(s.ticket.ticket_id) if s.ticket else None,
+                }
+            )
+        return JsonResponse({"status": "success", "data": data}, safe=False)
+
+    return JsonResponse({"status": "error", "message": "Invalid request"}, status=405)
