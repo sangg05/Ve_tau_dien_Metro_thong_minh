@@ -6,7 +6,7 @@ from rest_framework import status, viewsets
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, action
 
-from .models import Users, Station, Transactions, Ticket, CheckInOut, FraudLog, TicketProduct
+from .models import Users, Station, Ticket, Transactions, ScanRecord, FraudLog, CheckInOut, StationAssignment, TicketProduct
 from .serializers import (
     UserSerializer, UserRegisterSerializer,
     StationSerializer, TransactionSerializer,
@@ -33,6 +33,7 @@ class TicketProductViewSet(viewsets.ModelViewSet):
     queryset = TicketProduct.objects.all()
     serializer_class = TicketProductSerializer
 
+import uuid
 class TicketViewSet(viewsets.ModelViewSet):
     queryset = Ticket.objects.all()
     serializer_class = TicketSerializer
@@ -93,6 +94,7 @@ class TicketViewSet(viewsets.ModelViewSet):
                     ticket_status='Active',
                     start_station=start,
                     end_station=end,
+                    card_uid=str(uuid.uuid4())[:8] 
                 )
 
                 return Response(
@@ -176,13 +178,13 @@ def check_in(request):
             status=status.HTTP_201_CREATED
         )
     except Exception as e:
-        return Response({"error": f"Lỗi khi check-in/out: {str(e)}"},
-                        status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": f"Lỗi khi check-in/out: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+    
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 import json
-from .models import Ticket, ScanRecord, Station
+
 
 def station_list(request):
     stations = Station.objects.all()
@@ -267,13 +269,13 @@ def scan_record(request):
 
         # Lưu ScanRecord
         scan = ScanRecord.objects.create(
-            card_uid=card_uid,
-            station_id=station.station_id,
-            device_type=device_type,
-            ticket_found=ticket_found,
-            error_reason=error_reason,
-            device_id=device_id
-        )
+        card_uid=card_uid,
+        station=station,   # ✅ bây giờ là ForeignKey
+        device_type=device_type,
+        ticket_found=ticket_found,
+        error_reason=error_reason,
+        device_id=device_id
+)
 
         return JsonResponse({
             "status":"success",
@@ -286,4 +288,3 @@ def scan_record(request):
 
     except Exception as e:
         return JsonResponse({"status":"error","message": str(e)}, status=400)
-

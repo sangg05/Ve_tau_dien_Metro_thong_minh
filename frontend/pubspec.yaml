@@ -10,27 +10,20 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  firebase_auth: ^6.0.2
   cupertino_icons: ^1.0.8
-  http: ^1.2.1 
-<<<<<<< HEAD
-  firebase_core: ^2.15.1
-  google_sign_in: ^6.2.1
-  shared_preferences: ^2.2.3
-=======
+  http: ^1.2.1
   firebase_core: ^4.1.0
+  firebase_auth: ^6.0.2
   google_sign_in: ^7.1.1
->>>>>>> origin/Yen
   google_maps_flutter: ^2.5.0
+  shared_preferences: ^2.2.2   # <--- thêm dòng này
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
-
   flutter_lints: ^6.0.0
 
 flutter:
   uses-material-design: true
   assets:
-    - assets/
-
-
+    - assets/   # <--- nếu có folder assets thì để như này

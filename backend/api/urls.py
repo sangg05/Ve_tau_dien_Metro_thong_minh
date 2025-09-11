@@ -23,4 +23,8 @@ urlpatterns = [
     path('tickets/check-in/', check_in, name='check_in'),
     path('scan/', views.scan_record, name='scan_record'),
     path("get_station/", views.get_station),
+
+
+      # để router ở cuối
+    path('', include(router.urls)),
 ]

@@ -2,8 +2,11 @@ from rest_framework import serializers
 from django.contrib.auth.hashers import make_password
 from .models import Users, Station, Transactions, Ticket, CheckInOut, FraudLog
 from .models import ScanRecord
+from decimal import Decimal, InvalidOperation
 
-from .models import Users, Station, Transactions, Ticket, CheckInOut, FraudLog, TicketProduct
+
+
+from .models import Users, Station, Transactions, Ticket, CheckInOut, FraudLog,TicketProduct
 
 
 # -------- USER --------
@@ -67,14 +70,76 @@ class FraudLogSerializer(serializers.ModelSerializer):
         model = FraudLog
         fields = '__all__'
 class ScanRecordSerializer(serializers.ModelSerializer):
-    ticket = TicketSerializer(read_only=True)
+    ticket = serializers.SerializerMethodField()
 
     class Meta:
         model = ScanRecord
         fields = [
-            "id",
+            "scan_id",
             "ticket",
             "card_uid",
-            "station",
-            "scan_time",
+            "station_id",
+            "timestamp",
+            "device_type",
+            "ticket_found",
+            "error_reason",
+            "device_id"
         ]
+    
+    def get_ticket(self, obj):
+        if obj.ticket_found:
+            ticket = Ticket.objects.filter(card_uid=obj.card_uid).first()
+            if ticket:
+                return TicketSerializer(ticket).data
+        return None
+
+# -------- PURCHASE TICKET INPUT VALIDATION (match models) --------
+class PurchaseTicketSerializer(serializers.Serializer):
+    """
+    Dùng cho API POST /api/tickets/purchase/
+    ticket_type theo models: 'Month' | 'Day_All' | 'Day_Point_To_Point'
+    - Cho phép client gửi 'Day' và map sang 'Day_All'.
+    """
+    user_id = serializers.UUIDField()
+    ticket_type = serializers.ChoiceField(
+        choices=['Month', 'Day_All', 'Day_Point_To_Point', 'Day']
+    )
+    price = serializers.CharField()  # nhận chuỗi -> parse Decimal trong validate()
+    start_station = serializers.CharField()  # thay vì UUIDField
+    end_station = serializers.CharField()
+    days = serializers.IntegerField(required=False, min_value=1, max_value=31)
+
+    def validate(self, attrs):
+        # Map 'Day' rút gọn -> 'Day_All'
+        if attrs.get('ticket_type') == 'Day':
+            attrs['ticket_type'] = 'Day_All'
+
+        # Parse price -> Decimal và kiểm tra > 0
+        raw_price = attrs.get('price')
+        try:
+            price = Decimal(str(raw_price))
+        except (InvalidOperation, TypeError, ValueError):
+            raise serializers.ValidationError({'price': 'Giá không hợp lệ'})
+        if price <= 0:
+            raise serializers.ValidationError({'price': 'Giá phải > 0'})
+        attrs['price'] = price
+
+        # Không cho start == end
+        if attrs.get('start_station') == attrs.get('end_station'):
+            raise serializers.ValidationError('Ga đi và ga đến không được trùng')
+
+        # Xử lý days: chỉ áp dụng cho Day_*
+        ttype = attrs.get('ticket_type')
+        if ttype in ('Day_All', 'Day_Point_To_Point'):
+            if 'days' not in attrs or attrs['days'] is None:
+                attrs['days'] = 1
+        else:
+            # Month: bỏ qua days nếu có
+            attrs.pop('days', None)
+
+        return attrs
+#
+class TicketProductSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TicketProduct
+        fields = '__all__'
