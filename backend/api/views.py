@@ -190,10 +190,48 @@ def get_station(request):
     except StationAssignment.DoesNotExist:
         return JsonResponse({"status": "error", "message": "Device not found"})
 
+import json
+import uuid
+from datetime import timedelta
+from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
+
+from .models import Ticket, Station, ScanRecord, FraudLog, StationAssignment
+from .serializers import ScanRecordSerializer, TicketSerializer
+
+import json
+import os
+import joblib
+from datetime import timedelta
+from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
+
+from .models import ScanRecord, Ticket, Station, StationAssignment, FraudLog
+
+import os
+import json
+import joblib
+from datetime import timedelta
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.utils import timezone
+from .models import Ticket, ScanRecord, FraudLog, Station, StationAssignment
+
+# --- Load ML model & scaler ---
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # backend/api/
+MODEL_PATH = os.path.join(BASE_DIR, 'ml_models', 'logistic_fraud_model.pkl')
+SCALER_PATH = os.path.join(BASE_DIR, 'ml_models', 'scaler.pkl')
+
+ml_model = joblib.load(MODEL_PATH)
+ml_scaler = joblib.load(SCALER_PATH)
+
+
 @csrf_exempt
 def scan_record(request):
     if request.method != "POST":
-        return JsonResponse({"status":"error","message":"Invalid request"}, status=405)
+        return JsonResponse({"status": "error", "message": "Invalid request"}, status=405)
 
     try:
         data = json.loads(request.body.decode("utf-8"))
@@ -210,7 +248,6 @@ def scan_record(request):
             return JsonResponse({"status":"error","message":"Station không tồn tại"}, status=400)
 
         ticket = Ticket.objects.filter(card_uid=card_uid).first()
-
         ticket_found = False
         error_reason = "NoTicket"
         start_station = ""
@@ -221,42 +258,27 @@ def scan_record(request):
             start_station = ticket.start_station.station_name if ticket.start_station else ""
             end_station = ticket.end_station.station_name if ticket.end_station else ""
 
+            # ========== RULE CỨNG ==========
             # Rule 1: Vé hết hạn
             if ticket.ticket_status == "Expired" or ticket.valid_to <= now:
                 FraudLog.objects.create(ticket=ticket, description="Vé đã hết hạn")
                 return JsonResponse({"status": "error", "reason": "Expired"}, status=403)
 
-            # Rule 2: Vé chưa tới thời gian hiệu lực
-            if hasattr(ticket, "valid_from") and ticket.valid_from and ticket.valid_from > now:
-                FraudLog.objects.create(ticket=ticket, description="Vé chưa tới thời gian hiệu lực")
-                return JsonResponse({"status": "error", "reason": "NotYetValid"}, status=403)
+            # Rule 2: Quét cùng vé tại nhiều ga trong 3 phút
+            recent_scans = ScanRecord.objects.filter(
+                card_uid=card_uid, timestamp__gte=now - timedelta(minutes=3)
+            ).order_by("-timestamp")
+            if recent_scans.exists() and recent_scans.first().station != station:
+                FraudLog.objects.create(ticket=ticket, description="Quét cùng vé tại nhiều ga trong 3 phút")
+                return JsonResponse({"status": "error", "reason": "MultiStationQuick"}, status=403)
 
-            # Rule 3: Quét cùng vé tại nhiều ga trong 3 phút
-            recent_scans = ScanRecord.objects.filter(card_uid=card_uid, timestamp__gte=now - timedelta(minutes=3)).order_by("-timestamp")
-            if recent_scans.exists():
-                last_station = recent_scans.first().station
-                if last_station != station:
-                    FraudLog.objects.create(ticket=ticket, description="Quét cùng vé tại nhiều ga trong 3 phút")
-                    return JsonResponse({"status": "error", "reason": "MultiStationQuick"}, status=403)
-
-            # Rule 4: Tần suất quét bất thường (>8 lần/ngày)
+            # Rule 3: Tần suất quét bất thường (>8 lần/ngày)
             daily_scans = ScanRecord.objects.filter(card_uid=card_uid, timestamp__date=now.date()).count()
             if daily_scans >= 8:
                 FraudLog.objects.create(ticket=ticket, description="Tần suất quét bất thường (>8 lần/ngày)")
                 return JsonResponse({"status": "error", "reason": "HighFrequency"}, status=403)
 
-            # Rule 5: Quét từ nhiều thiết bị cùng lúc
-            recent_device_scans = ScanRecord.objects.filter(card_uid=card_uid, timestamp__gte=now - timedelta(seconds=30)).exclude(device_id=device_id)
-            if recent_device_scans.exists():
-                FraudLog.objects.create(ticket=ticket, description="Quét từ nhiều thiết bị cùng lúc")
-                return JsonResponse({"status": "error", "reason": "MultiDevice"}, status=403)
-
-            # Rule 6: Quét từ thiết bị không xác thực
-            if not StationAssignment.objects.filter(device_id=device_id).exists():
-                FraudLog.objects.create(ticket=ticket, description="Quét từ thiết bị không xác thực")
-                return JsonResponse({"status": "error", "reason": "InvalidDevice"}, status=403)
-
-            # Rule 7: Quét liên tiếp >5 lần cùng ga trong 1 phút
+            # Rule 4: Quét liên tiếp >5 lần cùng ga trong 1 phút
             if getattr(ticket, 'last_station_id', None) == station_id:
                 if getattr(ticket, 'last_check_time', None) and now - ticket.last_check_time <= timedelta(minutes=1):
                     ticket.last_station_count = getattr(ticket, 'last_station_count', 0) + 1
@@ -265,16 +287,28 @@ def scan_record(request):
             else:
                 ticket.last_station_id = station_id
                 ticket.last_station_count = 1
-
             ticket.last_check_time = now
             ticket.save()
-
             if getattr(ticket, 'last_station_count', 0) > 5:
                 FraudLog.objects.create(ticket=ticket, description="Quét cùng vé >5 lần liên tiếp tại cùng ga trong 1 phút")
                 return JsonResponse({"status":"error","reason":"HighFrequencySameStation"}, status=403)
 
+            # ========== ML PREDICTION ==========
+            features = [[
+                getattr(ticket, 'last_station_count', 0),
+                daily_scans,
+                0  # vì Rule 5 bị bỏ nên multi_device_flag luôn = 0
+            ]]
+            features_scaled = ml_scaler.transform(features)
+            fraud_prob = ml_model.predict_proba(features_scaled)[0][1]
+
+            if fraud_prob > 0.5:  # threshold có thể điều chỉnh
+                FraudLog.objects.create(ticket=ticket, description=f"ML predicted fraud: {fraud_prob:.2f}")
+                error_reason = "ML_Fraud"
+
             ticket_found = True
-            error_reason = "None"
+            if error_reason == "NoTicket":
+                error_reason = "None"
 
         # Lưu ScanRecord
         scan = ScanRecord.objects.create(
@@ -294,5 +328,6 @@ def scan_record(request):
             "start_station": start_station,
             "end_station": end_station
         }, status=201)
+
     except Exception as e:
         return JsonResponse({"status":"error","message": str(e)}, status=400)

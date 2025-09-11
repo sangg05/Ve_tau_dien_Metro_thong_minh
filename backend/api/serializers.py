@@ -1,3 +1,4 @@
+from datetime import timedelta
 from rest_framework import serializers
 from django.contrib.auth.hashers import make_password
 from decimal import Decimal, InvalidOperation
@@ -35,36 +36,26 @@ class TransactionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Transactions
         fields = '__all__'
+from rest_framework import serializers
+from .models import ScanRecord, Ticket, Station
 
 class TicketSerializer(serializers.ModelSerializer):
-    short_code = serializers.SerializerMethodField(read_only=True)
-    last_check_summary = serializers.SerializerMethodField(read_only=True)
-
     class Meta:
         model = Ticket
-        fields = '__all__'
-
-    def get_short_code(self, obj):
-        return str(obj.ticket_id).replace('-', '')[:8].upper()
-
-    def get_last_check_summary(self, obj):
-        if getattr(obj, 'last_check_time', None):
-            return f"{obj.last_station_count} lần tại ga {obj.last_station_id} gần nhất {obj.last_check_time.strftime('%H:%M:%S')}"
-        return None
-
-class CheckInOutSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CheckInOut
-        fields = '__all__'
-
-class FraudLogSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = FraudLog
-        fields = '__all__'
+        fields = [
+            "ticket_id",
+            "card_uid",
+            "ticket_status",
+            "start_station",
+            "end_station",
+            "valid_to",
+        ]
+        depth = 1  # để serialize start_station/end_station thành dict
 
 class ScanRecordSerializer(serializers.ModelSerializer):
     ticket = serializers.SerializerMethodField()
     station_id = serializers.CharField(source='station.station_id', read_only=True)
+    station_name = serializers.CharField(source='station.station_name', read_only=True)
 
     class Meta:
         model = ScanRecord
@@ -73,6 +64,7 @@ class ScanRecordSerializer(serializers.ModelSerializer):
             "ticket",
             "card_uid",
             "station_id",
+            "station_name",
             "timestamp",
             "device_type",
             "ticket_found",
@@ -86,6 +78,22 @@ class ScanRecordSerializer(serializers.ModelSerializer):
             if ticket:
                 return TicketSerializer(ticket).data
         return None
+
+
+class CheckInOutSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CheckInOut
+        fields = '__all__'
+
+class FraudLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FraudLog
+        fields = '__all__'
+
+from rest_framework import serializers
+from .models import ScanRecord, Ticket, Station
+from .serializers import TicketSerializer
+
 
 
 # -------- PURCHASE TICKET INPUT VALIDATION --------
