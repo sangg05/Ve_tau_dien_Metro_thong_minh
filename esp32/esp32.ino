@@ -5,10 +5,10 @@
 #include <ArduinoJson.h>
 
 // ==== WiFi & Backend ====
-const char* ssid = "Nha Tro Sinh Vien";
-const char* password = "0971471067";
-const char* serverStationURL = "http://192.168.1.134:8000/api/get_station/";
-const char* serverScanURL = "http://192.168.1.134:8000/api/scan/";
+const char* ssid = "AI";
+const char* password = "phhuong02";
+const char* serverStationURL = "http://10.241.150.134:8000/api/get_station/";
+const char* serverScanURL   = "http://10.241.150.134:8000/api/scan/";
 
 // ==== PN532 I2C ====
 #define SDA_PIN 25
@@ -42,31 +42,26 @@ void connectWiFi() {
   Serial.println(WiFi.localIP());
 }
 
-// ==== Fetch station info với debug ====
+// ==== Fetch station info từ backend ====
 bool fetchCurrentStation() {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("⚠️ WiFi chưa kết nối!");
     return false;
   }
 
-  String url = String(serverStationURL) + "?device_id=" + deviceID;
-  Serial.println("🔗 GET station từ: " + url);
-
   HTTPClient http;
+  String url = String(serverStationURL) + "?device_id=" + deviceID;
   http.begin(url);
   int httpResponseCode = http.GET();
 
   if (httpResponseCode > 0) {
-    Serial.print("HTTP GET code: ");
-    Serial.println(httpResponseCode);
     String payload = http.getString();
-    Serial.println("Payload: " + payload);
+    Serial.println("Stations JSON: " + payload);
 
-    DynamicJsonDocument doc(1024);
+    DynamicJsonDocument doc(512);
     DeserializationError error = deserializeJson(doc, payload);
     if (error) {
-      Serial.print("⚠️ JSON parse error: ");
-      Serial.println(error.c_str());
+      Serial.println("⚠️ JSON parse station failed");
       http.end();
       return false;
     }
@@ -80,15 +75,12 @@ bool fetchCurrentStation() {
       http.end();
       return true;
     } else {
-      Serial.print("⚠️ Backend error: ");
-      Serial.println(String(doc["message"].as<String>()));
+      Serial.println("⚠️ Backend error: " + String(doc["message"].as<String>()));
       http.end();
       return false;
     }
   } else {
-    Serial.print("⚠️ HTTP GET lỗi: ");
-    Serial.println(httpResponseCode);
-    Serial.println("Chi tiết lỗi: " + http.errorToString(httpResponseCode));
+    Serial.println("⚠️ HTTP GET lỗi: " + String(httpResponseCode));
     http.end();
     return false;
   }
@@ -96,7 +88,6 @@ bool fetchCurrentStation() {
 
 // ==== Gửi scan card ====
 void sendScan(String card_uid) {
-  Serial.println("🔄 Gửi scan card: " + card_uid);
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("⚠️ WiFi chưa kết nối!");
     return;
@@ -110,30 +101,30 @@ void sendScan(String card_uid) {
   int httpResponseCode = http.POST(payload);
 
   if (httpResponseCode > 0) {
-    Serial.print("HTTP POST code: ");
+    Serial.print("HTTP Response code: ");
     Serial.println(httpResponseCode);
     String response = http.getString();
     Serial.println("Response từ server: " + response);
 
-    DynamicJsonDocument doc(1024);
+    DynamicJsonDocument doc(512);
     DeserializationError error = deserializeJson(doc, response);
     if (error) {
-      Serial.print("⚠️ JSON parse scan failed: ");
-      Serial.println(error.c_str());
+      Serial.println("⚠️ JSON parse scan failed");
       return;
     }
 
     bool ticketFound = doc["ticket_found"] | false;
     String errorReason = doc["error_reason"] | "None";
+    String startStation = doc["start_station"] | "";
+    String endStation = doc["end_station"] | "";
 
-    Serial.println("Ticket found: " + String(ticketFound) + " | Error: " + errorReason);
+    Serial.println("Ga bắt đầu: " + startStation + " | Ga kết thúc: " + endStation);
+    Serial.println("Ticket status: " + String(ticketFound) + " | Error: " + errorReason);
 
     if (ticketFound) successFeedback();
     else errorFeedback();
   } else {
-    Serial.print("⚠️ HTTP POST lỗi: ");
-    Serial.println(httpResponseCode);
-    Serial.println("Chi tiết lỗi: " + http.errorToString(httpResponseCode));
+    Serial.println("⚠️ Lỗi gửi scan: " + String(httpResponseCode));
   }
   http.end();
 }
@@ -199,7 +190,34 @@ void setup() {
 
 // ==== Loop ====
 void loop() {
-  // Quét thẻ NFC
+  // 1. Live update deviceID / stationID từ Serial Monitor
+  if (Serial.available() > 0) {
+    String input = Serial.readStringUntil('\n');
+    input.trim();
+
+    if (input.startsWith("device:")) {
+      String newDevice = input.substring(7);
+      newDevice.trim();
+      if (newDevice.length() > 0 && newDevice != deviceID) {
+        deviceID = newDevice;
+        Serial.println("🔄 Đã đổi deviceID sang: " + deviceID);
+        if (fetchCurrentStation()) {
+          Serial.println("✅ Ga hiện tại: " + stationName + " (" + stationID + ")");
+        } else {
+          Serial.println("⚠️ Không lấy được station mới từ backend!");
+        }
+      }
+    } else if (input.startsWith("station:")) {
+      String newStation = input.substring(8);
+      newStation.trim();
+      if (newStation.length() > 0) {
+        stationID = newStation;
+        Serial.println("🔄 Đã đổi ga trực tiếp sang: " + stationID);
+      }
+    }
+  }
+
+  // 2. Quét thẻ NFC
   uint8_t uid[7];
   uint8_t uidLength;
   if (nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength)) {
@@ -208,7 +226,7 @@ void loop() {
       if (uid[i] < 0x10) uidString += "0";
       uidString += String(uid[i], HEX);
     }
-    uidString.toUpperCase();  // ✅ Sửa ở đây, không gán
+    uidString.toUpperCase();
     Serial.println("UID thẻ: " + uidString);
 
     sendScan(uidString);
