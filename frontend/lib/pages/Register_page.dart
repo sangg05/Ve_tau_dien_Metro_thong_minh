@@ -1,144 +1,96 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../api.dart';
 import 'login_page.dart';
-import 'otp_page.dart'; // Page nhập OTP
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
-
   @override
   State<RegisterPage> createState() => _RegisterPageState();
 }
 
 class _RegisterPageState extends State<RegisterPage> {
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _phoneController =
-      TextEditingController(); // ✅ Controller số điện thoại
-  final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController =
-      TextEditingController();
-
-  bool _isLoading = false;
-
+  final _email = TextEditingController();
+  final _name = TextEditingController();
+  final _phone = TextEditingController();
+  final _pass = TextEditingController();
+  final _pass2 = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  bool _loading = false;
 
-  // Hàm validate email
-  String? _validateEmail(String? value) {
-    if (value == null || value.isEmpty) return 'Email không được để trống';
-    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-    if (!emailRegex.hasMatch(value)) return 'Email không hợp lệ';
+  String? _vEmail(String? v) {
+    if (v == null || v.isEmpty) return 'Email không được để trống';
+    final r = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    if (!r.hasMatch(v)) return 'Email không hợp lệ';
     return null;
   }
 
-  // Hàm validate password
-  String? _validatePassword(String? value) {
-    if (value == null || value.isEmpty) return 'Mật khẩu không được để trống';
-    if (value.length < 6) return 'Mật khẩu phải có ít nhất 6 ký tự';
-    return null;
+  String? _vPass(String? v) =>
+      (v == null || v.length < 6) ? 'Tối thiểu 6 ký tự' : null;
+  String? _vPhone(String? v) {
+    if (v == null || v.isEmpty) return 'Số điện thoại không được để trống';
+    return RegExp(r'^0\d{9}$').hasMatch(v)
+        ? null
+        : 'Số điện thoại không hợp lệ';
   }
 
-  // Hàm validate số điện thoại
-  String? _validatePhone(String? value) {
-    if (value == null || value.isEmpty)
-      return 'Số điện thoại không được để trống';
-    final phoneRegex = RegExp(r'^(0[0-9]{9})$'); // Ví dụ: 10 số, bắt đầu bằng 0
-    if (!phoneRegex.hasMatch(value)) return 'Số điện thoại không hợp lệ';
-    return null;
-  }
-
-  Future<void> _registerUser() async {
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-
-    final String url = 'http://10.0.2.2:8000/api/register/';
-
-    final String email = _emailController.text.trim();
-    final String fullName = _nameController.text.trim();
-    final String phone = _phoneController.text.trim();
-    final String password = _passwordController.text;
-    final String confirmPassword = _confirmPasswordController.text;
-
-    if (password != confirmPassword) {
+    if (_pass.text != _pass2.text) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Mật khẩu không khớp')));
       return;
     }
 
-    setState(() {
-      _isLoading = true;
+    setState(() => _loading = true);
+    final uri = Uri.parse('$baseUrl/api/register/');
+    final body = jsonEncode({
+      'full_name': _name.text.trim(),
+      'email': _email.text.trim(),
+      'phone': _phone.text.trim(),
+      'password': _pass.text,
     });
 
-    final Map<String, dynamic> data = {
-      'username': email,
-      'full_name': fullName,
-      'phone': phone, // ✅ Gửi số điện thoại lên backend
-      'password': password,
-    };
-
     try {
-      final response = await http.post(
-        Uri.parse(url),
+      final res = await http.post(
+        uri,
         headers: {'Content-Type': 'application/json'},
-        body: json.encode(data),
+        body: body,
       );
+      Map<String, dynamic> data = {};
+      try {
+        data = jsonDecode(res.body);
+      } catch (_) {}
 
-      final responseData = json.decode(response.body);
-
-      if ((response.statusCode == 200 || response.statusCode == 201) &&
-          responseData['success'] == true) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Đăng ký thành công!')));
-
-        // Clear form
-        _emailController.clear();
-        _nameController.clear();
-        _phoneController.clear();
-        _passwordController.clear();
-        _confirmPasswordController.clear();
-
-        // Chuyển sang OTP Page
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => OtpPage(userId: responseData['user_id']),
+      if (res.statusCode == 201) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(data['message']?.toString() ?? 'Đăng ký thành công!'),
           ),
         );
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginPage()),
+        );
       } else {
-        String errorMessage = 'Có lỗi xảy ra, vui lòng thử lại';
-        if (responseData['errors'] != null) {
-          errorMessage = responseData['errors'].values
-              .map((e) => e.join(', '))
-              .join('\n');
-        } else if (responseData['message'] != null) {
-          errorMessage = responseData['message'];
-        }
-
+        final msg =
+            data['chi_tiet']?.toString() ??
+            data['error']?.toString() ??
+            data['message']?.toString() ??
+            'Có lỗi xảy ra (HTTP ${res.statusCode})';
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(errorMessage)));
+        ).showSnackBar(SnackBar(content: Text(msg)));
       }
-    } catch (e) {
+    } catch (_) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Lỗi kết nối tới server')));
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) setState(() => _loading = false);
     }
-  }
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _nameController.dispose();
-    _phoneController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
-    super.dispose();
   }
 
   @override
@@ -152,109 +104,80 @@ class _RegisterPageState extends State<RegisterPage> {
             children: [
               const SizedBox(height: 80),
               const Text(
-                "Đăng Ký",
+                'Đăng Ký',
                 style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 40),
               TextFormField(
-                controller: _emailController,
+                controller: _email,
                 decoration: const InputDecoration(
-                  labelText: "Email",
+                  labelText: 'Email',
                   border: OutlineInputBorder(),
                 ),
-                validator: _validateEmail,
+                validator: _vEmail,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               TextFormField(
-                controller: _nameController,
+                controller: _name,
                 decoration: const InputDecoration(
-                  labelText: "Họ và tên",
+                  labelText: 'Họ và tên',
                   border: OutlineInputBorder(),
                 ),
-                validator: (value) => value == null || value.isEmpty
+                validator: (v) => v == null || v.isEmpty
                     ? 'Họ tên không được để trống'
                     : null,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               TextFormField(
-                controller: _phoneController,
+                controller: _phone,
                 decoration: const InputDecoration(
-                  labelText: "Số điện thoại",
+                  labelText: 'Số điện thoại',
                   border: OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.phone,
-                validator: _validatePhone,
+                validator: _vPhone,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               TextFormField(
-                controller: _passwordController,
+                controller: _pass,
                 obscureText: true,
                 decoration: const InputDecoration(
-                  labelText: "Mật khẩu",
+                  labelText: 'Mật khẩu',
                   border: OutlineInputBorder(),
                 ),
-                validator: _validatePassword,
+                validator: _vPass,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               TextFormField(
-                controller: _confirmPasswordController,
+                controller: _pass2,
                 obscureText: true,
                 decoration: const InputDecoration(
-                  labelText: "Nhập lại mật khẩu",
+                  labelText: 'Nhập lại mật khẩu',
                   border: OutlineInputBorder(),
                 ),
-                validator: (value) => value == null || value.isEmpty
+                validator: (v) => v == null || v.isEmpty
                     ? 'Vui lòng nhập lại mật khẩu'
                     : null,
               ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: _isLoading ? null : _registerUser,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue.shade400,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25),
-                    ),
-                  ),
-                  child: _isLoading
+                  onPressed: _loading ? null : _submit,
+                  child: _loading
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text(
-                          "Đăng ký",
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                      : const Text('Đăng ký'),
                 ),
               ),
               const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text("Đã có tài khoản? "),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const LoginPage(),
-                        ),
-                      );
-                    },
-                    child: const Text(
-                      "Đăng nhập",
-                      style: TextStyle(
-                        color: Colors.blue,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
+              TextButton(
+                onPressed: () => Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginPage()),
+                ),
+                child: const Text('Đã có tài khoản? Đăng nhập'),
               ),
-              const SizedBox(height: 20),
             ],
           ),
         ),
