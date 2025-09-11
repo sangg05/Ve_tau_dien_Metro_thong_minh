@@ -1,7 +1,12 @@
 from django.db import models
 import uuid
 
+
 # ================== USERS ==================
+# BẢNG USERS
+from django.db import models
+import uuid
+
 class Users(models.Model):
     user_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     full_name = models.CharField(max_length=100)
@@ -80,3 +85,14 @@ class FraudLog(models.Model):
 
     def __str__(self):
         return f"Fraud {self.fraud_id} - {'Handled' if self.handled else 'Pending'}"
+
+class TicketProduct(models.Model):
+    id = models.AutoField(primary_key=True)
+    name = models.CharField(max_length=100)      # Tên vé
+    price = models.IntegerField()                # Giá vé
+    type = models.CharField(max_length=50)       # Loại vé: Day_All | Month | Day_Point_To_Point
+    days = models.IntegerField(null=True, blank=True)  # Số ngày (nếu vé ngày)
+    category = models.CharField(max_length=50, null=True, blank=True)  # Nhóm: featured | student
+
+    def __str__(self):
+        return f"{self.name} - {self.price}đ"

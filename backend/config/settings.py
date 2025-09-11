@@ -51,9 +51,9 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'metro_db',       
-        'USER': 'root',           
-        'PASSWORD': '27032005',
+        'NAME': 'metro_db',
+        'USER': 'root',
+        'PASSWORD': '27032005',      
         'HOST': 'localhost',
         'PORT': '3306',
     }
