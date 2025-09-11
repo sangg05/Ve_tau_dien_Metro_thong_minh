@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-
+from . import views 
 from .views import (
     UserViewSet, StationViewSet, TransactionViewSet,
     TicketViewSet, CheckInOutViewSet, FraudLogViewSet,
@@ -21,7 +21,6 @@ urlpatterns = [
     path('register/', register, name='register'),
     path('auth/login/', login, name='login'),
     path('tickets/check-in/', check_in, name='check_in'),
-
-    # để router ở cuối
-    path('', include(router.urls)),
+    path('scan/', views.scan_record, name='scan_record'),
+    path("get_station/", views.get_station),
 ]

@@ -176,4 +176,114 @@ def check_in(request):
             status=status.HTTP_201_CREATED
         )
     except Exception as e:
-        return Response({"error": f"Lỗi khi check-in/out: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": f"Lỗi khi check-in/out: {str(e)}"},
+                        status=status.HTTP_400_BAD_REQUEST)
+from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
+import json
+from .models import Ticket, ScanRecord, Station
+
+def station_list(request):
+    stations = Station.objects.all()
+    data = []
+    for s in stations:
+        data.append({
+            "station_id": str(s.station_id),
+            "station_name": s.station_name,
+            "location": s.location
+        })
+    return JsonResponse({"status": "success", "data": data})
+
+import json
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from .models import ScanRecord, Ticket, StationAssignment, Station
+from django.utils import timezone
+
+
+def get_station(request):
+    device_id = request.GET.get("device_id")
+    if not device_id:
+        return JsonResponse({"status": "error", "message": "Missing device_id"})
+    try:
+        assignment = StationAssignment.objects.get(device_id=device_id)
+        return JsonResponse({
+            "status": "success",
+            "station_id": assignment.station.station_id,
+            "station_name": assignment.station.station_name,
+            "device_type": assignment.device_type
+        })
+    except StationAssignment.DoesNotExist:
+        return JsonResponse({"status": "error", "message": "Device not found"})
+
+
+from django.utils import timezone
+import json
+from .models import ScanRecord, Station, Ticket
+
+@csrf_exempt
+def scan_record(request):
+    """
+    POST: ESP32 gửi card_uid + station_id + device_type + device_id
+    """
+    if request.method != "POST":
+        return JsonResponse({"status":"error","message":"Invalid request"}, status=405)
+    
+    try:
+        data = json.loads(request.body.decode("utf-8"))
+        card_uid = data.get("card_uid")
+        station_id = data.get("station_id")
+        device_type = data.get("device_type")
+        device_id = data.get("device_id")
+
+        if not card_uid or not station_id or not device_type or not device_id:
+            return JsonResponse({"status":"error","message":"Thiếu dữ liệu"}, status=400)
+
+        # Lấy ga hiện tại
+        try:
+            station = Station.objects.get(station_id=station_id)
+        except Station.DoesNotExist:
+            return JsonResponse({"status":"error","message":"Station không tồn tại"}, status=400)
+
+        # Lấy thông tin vé (nếu có)
+        ticket = Ticket.objects.filter(card_uid=card_uid).first()
+
+        ticket_found = False
+        error_reason = "NoTicket"
+        start_station = ""
+        end_station = ""
+
+        if ticket:
+            start_station = ticket.start_station.station_name if ticket.start_station else ""
+            end_station = ticket.end_station.station_name if ticket.end_station else ""
+            if ticket.ticket_status == "Active" and ticket.valid_to > timezone.now():
+                ticket_found = True
+                error_reason = "None"
+            elif ticket.ticket_status == "Expired" or ticket.valid_to <= timezone.now():
+                error_reason = "Expired"
+            elif ticket.ticket_status == "Blocked":
+                error_reason = "Blocked"
+
+        # Lưu ScanRecord
+        scan = ScanRecord.objects.create(
+            card_uid=card_uid,
+            station_id=station.station_id,
+            device_type=device_type,
+            ticket_found=ticket_found,
+            error_reason=error_reason,
+            device_id=device_id
+        )
+
+        return JsonResponse({
+            "status":"success",
+            "scan_id": str(scan.scan_id),
+            "ticket_found": ticket_found,
+            "error_reason": error_reason,
+            "start_station": start_station,
+            "end_station": end_station
+        }, status=201)
+
+    except Exception as e:
+        return JsonResponse({"status":"error","message": str(e)}, status=400)
+
