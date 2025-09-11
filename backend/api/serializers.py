@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.hashers import make_password
 from .models import Users, Station, Transactions, Ticket, CheckInOut, FraudLog
+from .models import ScanRecord
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -32,6 +33,11 @@ class TransactionSerializer(serializers.ModelSerializer):
         model = Transactions
         fields = '__all__'
 
+class TicketSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Ticket
+        fields = '__all__'
+
 class CheckInOutSerializer(serializers.ModelSerializer):
     class Meta:
         model = CheckInOut
@@ -41,31 +47,15 @@ class FraudLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = FraudLog
         fields = '__all__'
-
-from rest_framework import serializers
-from .models import Ticket, Station, Users
-
-class TicketSerializer(serializers.ModelSerializer):
-    user = serializers.CharField(source='user.full_name')
-    start_station = serializers.CharField(source='start_station.station_name')
-    end_station = serializers.CharField(source='end_station.station_name')
-
-    class Meta:
-        model = Ticket
-        fields = [
-            'ticket_id',
-            'ticket_type',
-            'user',
-            'start_station',
-            'end_station',
-            'valid_from',
-            'valid_to',
-            'ticket_status',
-        ]
-from rest_framework import serializers
-from .models import ScanRecord
-
 class ScanRecordSerializer(serializers.ModelSerializer):
+    ticket = TicketSerializer(read_only=True)
+
     class Meta:
         model = ScanRecord
-        fields = '__all__'
+        fields = [
+            "id",
+            "ticket",
+            "card_uid",
+            "station",
+            "scan_time",
+        ]

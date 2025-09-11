@@ -22,4 +22,5 @@ urlpatterns = [
     path('tickets/purchase/', purchase_ticket, name='purchase_ticket'),
     path('tickets/check-in/', check_in, name='check_in'),
     path('scan/', views.scan_record, name='scan_record'),
+    path("get_station/", views.get_station),
 ]

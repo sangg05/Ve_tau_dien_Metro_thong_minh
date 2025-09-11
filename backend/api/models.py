@@ -1,28 +1,39 @@
-from django.db import models
 import uuid
+from django.db import models
+from django.utils import timezone
 
-# ================== USERS ==================
+# ==========================
+# BẢNG USERS
+# ==========================
 class Users(models.Model):
     user_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     full_name = models.CharField(max_length=100)
-    email = models.EmailField(unique=True)
-    phone = models.CharField(max_length=20, blank=True, null=True)
-    user_password = models.CharField(max_length=256)
+    email = models.EmailField(unique=True, max_length=100)
+    phone = models.CharField(max_length=20, null=True, blank=True)
+    user_password = models.CharField(max_length=255)
+    is_student = models.BooleanField(default=False)
+    card_uid = models.CharField(max_length=50, null=True, blank=True, unique=True)
 
     def __str__(self):
         return self.email
-     #viết method để lấy ticket active
+
+    # 👉 viết method để lấy ticket active
     def get_active_ticket(self):
         from .models import Ticket  # import tại đây để tránh lỗi vòng lặp
         return Ticket.objects.filter(user=self, ticket_status="Active").first()
-# ================== STATION ==================
+
+
+# ==========================
+# BẢNG STATION
+# ==========================
 class Station(models.Model):
-    station_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    station_id = models.CharField(primary_key=True, max_length=20)      
     station_name = models.CharField(max_length=100)
     location = models.CharField(max_length=255, null=True, blank=True)
 
     def __str__(self):
         return self.station_name
+
 
 # ================== TRANSACTIONS ==================
 class Transactions(models.Model):
@@ -32,9 +43,7 @@ class Transactions(models.Model):
     transaction_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(Users, on_delete=models.CASCADE)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    created_at = models.DateTimeField(auto_now_add=True)
-    transaction_status = models.CharField(max_length=10, choices=TRANSACTION_STATUS)
-    method = models.CharField(max_length=10, choices=METHOD_CHOICES)
+    transaction_time = models.DateTimeField(default=timezone.now)
 
     def __str__(self):
         return f"{self.transaction_id} - {self.transaction_status}"
@@ -59,7 +68,37 @@ class Ticket(models.Model):
     def __str__(self):
         return f"{self.ticket_id} - {self.ticket_status}"
 
-# ================== CHECK IN/OUT ==================
+# ==========================
+# BẢNG SCAN RECORD
+# ==========================
+from django.db import models
+
+class ScanRecord(models.Model):
+    scan_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    card_uid = models.CharField(max_length=50)
+    station_id = models.CharField(max_length=20)
+    device_type = models.CharField(max_length=20, choices=[("CheckIn","CheckIn"),("CheckOut","CheckOut")], null=True, blank=True)
+    ticket_found = models.BooleanField(default=False)
+    error_reason = models.CharField(max_length=50, null=True, blank=True)
+    device_id = models.CharField(max_length=10, default='UNKNOWN')
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.scan_id} - {self.card_uid}"
+
+
+
+# ==========================
+# BẢNG FRAUD LOG
+# ==========================
+class FraudLog(models.Model):
+    fraud_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE)
+    description = models.TextField()  # nếu đổi tên là descriptions thì nhớ migration
+    detected_time = models.DateTimeField(default=timezone.now)
+
+    def __str__(self):
+        return f"Fraud {self.fraud_id} - Ticket {self.ticket.ticket_id}"
 class CheckInOut(models.Model):
     DIRECTION = [('In', 'In'), ('Out', 'Out')]
 
@@ -72,28 +111,10 @@ class CheckInOut(models.Model):
 
     def __str__(self):
         return f"{self.check_id} - {self.direction}"
-
-# ================== FRAUD LOG ==================
-class FraudLog(models.Model):
-    fraud_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(Users, on_delete=models.CASCADE)
-    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE)
-    detected_at = models.DateTimeField(auto_now_add=True)
-    descriptions = models.TextField()
-    handled = models.BooleanField(default=False)
+class StationAssignment(models.Model):
+    device_id = models.CharField(max_length=10, primary_key=True)  # VD: "A1234"
+    station = models.ForeignKey(Station, on_delete=models.CASCADE)
+    device_type = models.CharField(max_length=20, choices=[("CheckIn","CheckIn"),("CheckOut","CheckOut")])
 
     def __str__(self):
-        return f"Fraud {self.fraud_id} - {'Handled' if self.handled else 'Pending'}"
-from django.utils import timezone
-class ScanRecord(models.Model):
-    ticket = models.ForeignKey("Ticket", on_delete=models.SET_NULL, null=True, blank=True)
-    card_uid = models.CharField(max_length=50)
-    station = models.CharField(max_length=100)
-    scan_time = models.DateTimeField(default=timezone.now)
-
-    def __str__(self):
-        if self.ticket:
-            return f"Scan {self.card_uid} tại {self.station} (Ticket {self.ticket.ticket_id})"
-        return f"Scan {self.card_uid} tại {self.station} (No Ticket)"
-
-
+        return f"{self.device_id} - {self.station.station_name} ({self.device_type})"
