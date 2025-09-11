@@ -1,13 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.hashers import make_password
-from .models import Users, Station, Transactions, Ticket, CheckInOut, FraudLog
-from .models import ScanRecord
 from decimal import Decimal, InvalidOperation
-
-
-
-from .models import Users, Station, Transactions, Ticket, CheckInOut, FraudLog,TicketProduct
-
+from .models import Users, Station, Transactions, Ticket, CheckInOut, FraudLog, ScanRecord, TicketProduct
 
 # -------- USER --------
 class UserSerializer(serializers.ModelSerializer):
@@ -37,40 +31,40 @@ class StationSerializer(serializers.ModelSerializer):
         model = Station
         fields = '__all__'
 
-
 class TransactionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Transactions
         fields = '__all__'
 
 class TicketSerializer(serializers.ModelSerializer):
-    # Mã vé ngắn để hiển thị (ưu tiên field ticket_code nếu model có,
-    # nếu không thì lấy 8 ký tự đầu của UUID, bỏ dấu gạch)
     short_code = serializers.SerializerMethodField(read_only=True)
+    last_check_summary = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Ticket
-        fields = '__all__'          # giữ nguyên toàn bộ field của model
-        read_only_fields = ()       # có thể để trống
-        # DRF sẽ tự thêm short_code vì đã khai báo SerializerMethodField ở trên
+        fields = '__all__'
 
     def get_short_code(self, obj):
-        code = getattr(obj, 'ticket_code', None)  # nếu đã bổ sung field ticket_code trong model
-        if code:
-            return str(code)
         return str(obj.ticket_id).replace('-', '')[:8].upper()
+
+    def get_last_check_summary(self, obj):
+        if getattr(obj, 'last_check_time', None):
+            return f"{obj.last_station_count} lần tại ga {obj.last_station_id} gần nhất {obj.last_check_time.strftime('%H:%M:%S')}"
+        return None
+
 class CheckInOutSerializer(serializers.ModelSerializer):
     class Meta:
         model = CheckInOut
         fields = '__all__'
 
-
 class FraudLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = FraudLog
         fields = '__all__'
+
 class ScanRecordSerializer(serializers.ModelSerializer):
     ticket = serializers.SerializerMethodField()
+    station_id = serializers.CharField(source='station.station_id', read_only=True)
 
     class Meta:
         model = ScanRecord
@@ -85,7 +79,7 @@ class ScanRecordSerializer(serializers.ModelSerializer):
             "error_reason",
             "device_id"
         ]
-    
+
     def get_ticket(self, obj):
         if obj.ticket_found:
             ticket = Ticket.objects.filter(card_uid=obj.card_uid).first()
@@ -93,28 +87,24 @@ class ScanRecordSerializer(serializers.ModelSerializer):
                 return TicketSerializer(ticket).data
         return None
 
-# -------- PURCHASE TICKET INPUT VALIDATION (match models) --------
+
+# -------- PURCHASE TICKET INPUT VALIDATION --------
 class PurchaseTicketSerializer(serializers.Serializer):
-    """
-    Dùng cho API POST /api/tickets/purchase/
-    ticket_type theo models: 'Month' | 'Day_All' | 'Day_Point_To_Point'
-    - Cho phép client gửi 'Day' và map sang 'Day_All'.
-    """
     user_id = serializers.UUIDField()
     ticket_type = serializers.ChoiceField(
         choices=['Month', 'Day_All', 'Day_Point_To_Point', 'Day']
     )
-    price = serializers.CharField()  # nhận chuỗi -> parse Decimal trong validate()
-    start_station = serializers.CharField()  # thay vì UUIDField
+    price = serializers.CharField()  # parse Decimal trong validate()
+    start_station = serializers.CharField()
     end_station = serializers.CharField()
     days = serializers.IntegerField(required=False, min_value=1, max_value=31)
 
     def validate(self, attrs):
-        # Map 'Day' rút gọn -> 'Day_All'
+        # Map 'Day' -> 'Day_All'
         if attrs.get('ticket_type') == 'Day':
             attrs['ticket_type'] = 'Day_All'
 
-        # Parse price -> Decimal và kiểm tra > 0
+        # Parse price -> Decimal
         raw_price = attrs.get('price')
         try:
             price = Decimal(str(raw_price))
@@ -134,11 +124,12 @@ class PurchaseTicketSerializer(serializers.Serializer):
             if 'days' not in attrs or attrs['days'] is None:
                 attrs['days'] = 1
         else:
-            # Month: bỏ qua days nếu có
             attrs.pop('days', None)
 
         return attrs
-#
+
+
+# -------- TICKET PRODUCT --------
 class TicketProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = TicketProduct

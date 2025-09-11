@@ -1,12 +1,20 @@
+from datetime import timedelta
 from django.utils import timezone
 from django.contrib.auth.hashers import check_password
 from django.db import transaction as db_transaction
+from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
+import json
+import uuid
 
 from rest_framework import status, viewsets
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, action
 
-from .models import Users, Station, Ticket, Transactions, ScanRecord, FraudLog, CheckInOut, StationAssignment, TicketProduct
+from .models import (
+    Users, Station, Ticket, Transactions, ScanRecord,
+    FraudLog, CheckInOut, StationAssignment, TicketProduct
+)
 from .serializers import (
     UserSerializer, UserRegisterSerializer,
     StationSerializer, TransactionSerializer,
@@ -19,7 +27,7 @@ from .serializers import (
 class UserViewSet(viewsets.ModelViewSet):
     queryset = Users.objects.all()
     serializer_class = UserSerializer
-    lookup_field = 'user_id'  # GET /api/users/<user_id>/
+    lookup_field = 'user_id'
 
 class StationViewSet(viewsets.ModelViewSet):
     queryset = Station.objects.all()
@@ -33,12 +41,10 @@ class TicketProductViewSet(viewsets.ModelViewSet):
     queryset = TicketProduct.objects.all()
     serializer_class = TicketProductSerializer
 
-import uuid
 class TicketViewSet(viewsets.ModelViewSet):
     queryset = Ticket.objects.all()
     serializer_class = TicketSerializer
 
-    # Cho phép lọc vé theo user_id: GET /api/tickets/?user_id=<uuid>
     def get_queryset(self):
         qs = super().get_queryset().select_related(
             'user', 'transaction', 'start_station', 'end_station'
@@ -48,20 +54,8 @@ class TicketViewSet(viewsets.ModelViewSet):
             qs = qs.filter(user__user_id=user_id)
         return qs
 
-    # POST /api/tickets/purchase/
     @action(detail=False, methods=['post'], url_path='purchase')
     def purchase(self, request):
-        """
-        Body JSON:
-        {
-          "user_id": "uuid",
-          "ticket_type": "Month|Day_All|Day_Point_To_Point|Day",
-          "price": "40000",
-          "start_station": "uuid",
-          "end_station": "uuid",
-          "days": 1
-        }
-        """
         input_ser = PurchaseTicketSerializer(data=request.data)
         input_ser.is_valid(raise_exception=True)
         data = input_ser.validated_data
@@ -70,7 +64,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             with db_transaction.atomic():
                 user = Users.objects.get(user_id=data['user_id'])
                 start = Station.objects.get(station_id=data['start_station'])
-                end   = Station.objects.get(station_id=data['end_station'])
+                end = Station.objects.get(station_id=data['end_station'])
 
                 trans = Transactions.objects.create(
                     user=user,
@@ -94,7 +88,7 @@ class TicketViewSet(viewsets.ModelViewSet):
                     ticket_status='Active',
                     start_station=start,
                     end_station=end,
-                    card_uid=str(uuid.uuid4())[:8] 
+                    card_uid=str(uuid.uuid4())[:8]
                 )
 
                 return Response(
@@ -117,7 +111,7 @@ class FraudLogViewSet(viewsets.ModelViewSet):
     queryset = FraudLog.objects.all()
     serializer_class = FraudLogSerializer
 
-# ========= AUTH & SIMPLE VIEWS =========
+# ========= AUTH =========
 @api_view(['POST'])
 def register(request):
     serializer = UserRegisterSerializer(data=request.data)
@@ -150,28 +144,23 @@ def login(request):
 @api_view(['POST'])
 def check_in(request):
     try:
-        ticket_id  = request.data.get('ticket_id')
-        user_id    = request.data.get('user_id')
+        ticket_id = request.data.get('ticket_id')
+        user_id = request.data.get('user_id')
         station_id = request.data.get('station_id')
-        direction  = request.data.get('direction')  # "In" hoặc "Out"
+        direction = request.data.get('direction')
 
-        ticket  = Ticket.objects.get(ticket_id=ticket_id)
-        user    = Users.objects.get(user_id=user_id)
+        ticket = Ticket.objects.get(ticket_id=ticket_id)
+        user = Users.objects.get(user_id=user_id)
         station = Station.objects.get(station_id=station_id)
 
         if ticket.user != user or ticket.ticket_status != 'Active':
             fraud = FraudLog.objects.create(
-                user=user, ticket=ticket,
-                descriptions="Người dùng cố gắng check-in/out bằng vé không hợp lệ"
+                ticket=ticket,
+                description="Người dùng cố gắng check-in/out bằng vé không hợp lệ"
             )
-            return Response(
-                {"error": "Vé không hợp lệ!", "fraud_id": str(fraud.fraud_id)},
-                status=status.HTTP_403_FORBIDDEN
-            )
+            return Response({"error": "Vé không hợp lệ!", "fraud_id": str(fraud.fraud_id)}, status=status.HTTP_403_FORBIDDEN)
 
-        check = CheckInOut.objects.create(
-            ticket=ticket, user=user, station=station, direction=direction
-        )
+        check = CheckInOut.objects.create(ticket=ticket, user=user, station=station, direction=direction)
 
         return Response(
             {"message": f"Check-{direction} thành công!", "chi_tiet": CheckInOutSerializer(check).data},
@@ -179,30 +168,12 @@ def check_in(request):
         )
     except Exception as e:
         return Response({"error": f"Lỗi khi check-in/out: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
-    
-from django.utils import timezone
-from django.views.decorators.csrf import csrf_exempt
-from django.http import JsonResponse
-import json
 
-
+# ========= SIMPLE VIEWS =========
 def station_list(request):
     stations = Station.objects.all()
-    data = []
-    for s in stations:
-        data.append({
-            "station_id": str(s.station_id),
-            "station_name": s.station_name,
-            "location": s.location
-        })
+    data = [{"station_id": str(s.station_id), "station_name": s.station_name, "location": s.location} for s in stations]
     return JsonResponse({"status": "success", "data": data})
-
-import json
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from .models import ScanRecord, Ticket, StationAssignment, Station
-from django.utils import timezone
-
 
 def get_station(request):
     device_id = request.GET.get("device_id")
@@ -219,19 +190,11 @@ def get_station(request):
     except StationAssignment.DoesNotExist:
         return JsonResponse({"status": "error", "message": "Device not found"})
 
-
-from django.utils import timezone
-import json
-from .models import ScanRecord, Station, Ticket
-
 @csrf_exempt
 def scan_record(request):
-    """
-    POST: ESP32 gửi card_uid + station_id + device_type + device_id
-    """
     if request.method != "POST":
         return JsonResponse({"status":"error","message":"Invalid request"}, status=405)
-    
+
     try:
         data = json.loads(request.body.decode("utf-8"))
         card_uid = data.get("card_uid")
@@ -242,40 +205,86 @@ def scan_record(request):
         if not card_uid or not station_id or not device_type or not device_id:
             return JsonResponse({"status":"error","message":"Thiếu dữ liệu"}, status=400)
 
-        # Lấy ga hiện tại
-        try:
-            station = Station.objects.get(station_id=station_id)
-        except Station.DoesNotExist:
+        station = Station.objects.filter(station_id=station_id).first()
+        if not station:
             return JsonResponse({"status":"error","message":"Station không tồn tại"}, status=400)
 
-        # Lấy thông tin vé (nếu có)
         ticket = Ticket.objects.filter(card_uid=card_uid).first()
 
         ticket_found = False
         error_reason = "NoTicket"
         start_station = ""
         end_station = ""
+        now = timezone.now()
 
         if ticket:
             start_station = ticket.start_station.station_name if ticket.start_station else ""
             end_station = ticket.end_station.station_name if ticket.end_station else ""
-            if ticket.ticket_status == "Active" and ticket.valid_to > timezone.now():
-                ticket_found = True
-                error_reason = "None"
-            elif ticket.ticket_status == "Expired" or ticket.valid_to <= timezone.now():
-                error_reason = "Expired"
-            elif ticket.ticket_status == "Blocked":
-                error_reason = "Blocked"
+
+            # Rule 1: Vé hết hạn
+            if ticket.ticket_status == "Expired" or ticket.valid_to <= now:
+                FraudLog.objects.create(ticket=ticket, description="Vé đã hết hạn")
+                return JsonResponse({"status": "error", "reason": "Expired"}, status=403)
+
+            # Rule 2: Vé chưa tới thời gian hiệu lực
+            if hasattr(ticket, "valid_from") and ticket.valid_from and ticket.valid_from > now:
+                FraudLog.objects.create(ticket=ticket, description="Vé chưa tới thời gian hiệu lực")
+                return JsonResponse({"status": "error", "reason": "NotYetValid"}, status=403)
+
+            # Rule 3: Quét cùng vé tại nhiều ga trong 3 phút
+            recent_scans = ScanRecord.objects.filter(card_uid=card_uid, timestamp__gte=now - timedelta(minutes=3)).order_by("-timestamp")
+            if recent_scans.exists():
+                last_station = recent_scans.first().station
+                if last_station != station:
+                    FraudLog.objects.create(ticket=ticket, description="Quét cùng vé tại nhiều ga trong 3 phút")
+                    return JsonResponse({"status": "error", "reason": "MultiStationQuick"}, status=403)
+
+            # Rule 4: Tần suất quét bất thường (>8 lần/ngày)
+            daily_scans = ScanRecord.objects.filter(card_uid=card_uid, timestamp__date=now.date()).count()
+            if daily_scans >= 8:
+                FraudLog.objects.create(ticket=ticket, description="Tần suất quét bất thường (>8 lần/ngày)")
+                return JsonResponse({"status": "error", "reason": "HighFrequency"}, status=403)
+
+            # Rule 5: Quét từ nhiều thiết bị cùng lúc
+            recent_device_scans = ScanRecord.objects.filter(card_uid=card_uid, timestamp__gte=now - timedelta(seconds=30)).exclude(device_id=device_id)
+            if recent_device_scans.exists():
+                FraudLog.objects.create(ticket=ticket, description="Quét từ nhiều thiết bị cùng lúc")
+                return JsonResponse({"status": "error", "reason": "MultiDevice"}, status=403)
+
+            # Rule 6: Quét từ thiết bị không xác thực
+            if not StationAssignment.objects.filter(device_id=device_id).exists():
+                FraudLog.objects.create(ticket=ticket, description="Quét từ thiết bị không xác thực")
+                return JsonResponse({"status": "error", "reason": "InvalidDevice"}, status=403)
+
+            # Rule 7: Quét liên tiếp >5 lần cùng ga trong 1 phút
+            if getattr(ticket, 'last_station_id', None) == station_id:
+                if getattr(ticket, 'last_check_time', None) and now - ticket.last_check_time <= timedelta(minutes=1):
+                    ticket.last_station_count = getattr(ticket, 'last_station_count', 0) + 1
+                else:
+                    ticket.last_station_count = 1
+            else:
+                ticket.last_station_id = station_id
+                ticket.last_station_count = 1
+
+            ticket.last_check_time = now
+            ticket.save()
+
+            if getattr(ticket, 'last_station_count', 0) > 5:
+                FraudLog.objects.create(ticket=ticket, description="Quét cùng vé >5 lần liên tiếp tại cùng ga trong 1 phút")
+                return JsonResponse({"status":"error","reason":"HighFrequencySameStation"}, status=403)
+
+            ticket_found = True
+            error_reason = "None"
 
         # Lưu ScanRecord
         scan = ScanRecord.objects.create(
-        card_uid=card_uid,
-        station=station,   # ✅ bây giờ là ForeignKey
-        device_type=device_type,
-        ticket_found=ticket_found,
-        error_reason=error_reason,
-        device_id=device_id
-)
+            card_uid=card_uid,
+            station=station,
+            device_type=device_type,
+            ticket_found=ticket_found,
+            error_reason=error_reason,
+            device_id=device_id
+        )
 
         return JsonResponse({
             "status":"success",
@@ -285,6 +294,5 @@ def scan_record(request):
             "start_station": start_station,
             "end_station": end_station
         }, status=201)
-
     except Exception as e:
         return JsonResponse({"status":"error","message": str(e)}, status=400)

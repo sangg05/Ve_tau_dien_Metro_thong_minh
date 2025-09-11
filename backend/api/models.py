@@ -75,7 +75,9 @@ class Ticket(models.Model):
     start_station = models.ForeignKey(Station, on_delete=models.SET_NULL, null=True, related_name="start_station")
     end_station = models.ForeignKey(Station, on_delete=models.SET_NULL, null=True, related_name="end_station")
     card_uid = models.CharField(max_length=100, unique=True, null=True, blank=True)
-
+    last_station_id = models.CharField(max_length=20, null=True, blank=True)
+    last_check_time = models.DateTimeField(null=True, blank=True)
+    last_station_count = models.IntegerField(default=0)
     def __str__(self):
         return f"{self.ticket_id} - {self.ticket_status}"
 
