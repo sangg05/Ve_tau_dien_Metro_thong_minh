@@ -94,11 +94,22 @@ class ScanRecord(models.Model):
 class FraudLog(models.Model):
     fraud_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE)
-    description = models.TextField()  # nếu đổi tên là descriptions thì nhớ migration
+    user = models.ForeignKey(Users, on_delete=models.CASCADE)  # Thêm user
+    card_uid = models.CharField(max_length=50, null=True, blank=True)
+    station_id = models.CharField(max_length=20, null=True, blank=True)
+    description = models.TextField()
     detected_time = models.DateTimeField(default=timezone.now)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['ticket']),
+            models.Index(fields=['user']),        # index để lọc nhanh theo user
+            models.Index(fields=['detected_time']),
+        ]
+
     def __str__(self):
-        return f"Fraud {self.fraud_id} - Ticket {self.ticket.ticket_id}"
+        return f"Fraud {self.fraud_id} - Ticket {self.ticket.ticket_id} - User {self.user.user_id}"
+
 class CheckInOut(models.Model):
     DIRECTION = [('In', 'In'), ('Out', 'Out')]
 
