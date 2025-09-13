@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../api/api_service.dart'; // Lấy danh sách ga từ backend
+import '../api/api_service.dart';
 import 'TicketDetailPage.dart';
 import 'my_ticket_page.dart';
 import 'transaction_history_page.dart';
@@ -21,10 +21,6 @@ class _BuyTicketPageState extends State<BuyTicketPage> {
   /// Danh sách ga từ backend: mỗi phần tử gồm {station_id, station_name}
   List<Map<String, dynamic>> _stations = [];
 
-  /// UUID đang chọn cho Ga đi/Ga đến
-  String? _startStationId;
-  String? _endStationId;
-
   @override
   void initState() {
     super.initState();
@@ -36,12 +32,6 @@ class _BuyTicketPageState extends State<BuyTicketPage> {
       final list = await ApiService.getStations();
       setState(() {
         _stations = list;
-        if (_stations.isNotEmpty) {
-          _startStationId = _stations.first['station_id']?.toString();
-          _endStationId = _stations.length > 1
-              ? _stations[1]['station_id']?.toString()
-              : _stations.first['station_id']?.toString();
-        }
         _loading = false;
       });
     } catch (e) {
@@ -52,42 +42,26 @@ class _BuyTicketPageState extends State<BuyTicketPage> {
     }
   }
 
-  String _stationNameById(String? id) {
-    final m = _stations.firstWhere(
-      (e) => e['station_id']?.toString() == id,
-      orElse: () => const {},
-    );
-    return (m['station_name'] ?? '').toString();
-  }
-
+  // Điều hướng sang trang thanh toán cho vé thời gian (không cần ga)
   void _goToPayment({
     required BuildContext context,
     required int price,
-    required String ticketType, // 'Day_All' | 'Month' | 'Day_Point_To_Point'
+    required String ticketType, // 'Day_All' | 'Month'
+    required int passDays, // 1 | 3 | 30
   }) {
-    if (_startStationId == null || _endStationId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng chọn Ga đi và Ga đến')),
-      );
-      return;
-    }
-    if (_startStationId == _endStationId) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ga đi và Ga đến không được trùng')),
-      );
-      return;
-    }
-
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => PaymentPage(
-          startStationId: _startStationId!, // UUID ga đi
-          destStationId: _endStationId!, // UUID ga đến
-          startStationName: _stationNameById(_startStationId),
-          destStationName: _stationNameById(_endStationId),
+          // Time-pass: không gửi ga
+          startStationId: null,
+          destStationId: null,
+          startStationName: '',
+          destStationName: '',
           price: price,
           ticketType: ticketType,
+          isTimePass: true,
+          passDays: passDays,
         ),
       ),
     );
@@ -130,15 +104,6 @@ class _BuyTicketPageState extends State<BuyTicketPage> {
       );
     }
 
-    final stationItems = _stations
-        .map(
-          (s) => DropdownMenuItem<String>(
-            value: s['station_id']?.toString(),
-            child: Text((s['station_name'] ?? '').toString()),
-          ),
-        )
-        .toList();
-
     return Scaffold(
       backgroundColor: Colors.grey[200],
       appBar: AppBar(
@@ -166,44 +131,7 @@ class _BuyTicketPageState extends State<BuyTicketPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // --- Chọn hành trình ---
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.black12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "Chọn hành trình",
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      value: _startStationId,
-                      decoration: const InputDecoration(labelText: 'Ga đi'),
-                      items: stationItems,
-                      onChanged: (v) => setState(() => _startStationId = v),
-                    ),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      value: _endStationId,
-                      decoration: const InputDecoration(labelText: 'Ga đến'),
-                      items: stationItems,
-                      onChanged: (v) => setState(() => _endStationId = v),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // --- Nổi bật ---
+              // --- Nổi bật (vé thời gian) ---
               const Text(
                 "Nổi bật",
                 style: TextStyle(
@@ -221,6 +149,7 @@ class _BuyTicketPageState extends State<BuyTicketPage> {
                   context: context,
                   price: 40000,
                   ticketType: 'Day_All',
+                  passDays: 1,
                 ),
               ),
               _ticketCard(
@@ -229,7 +158,8 @@ class _BuyTicketPageState extends State<BuyTicketPage> {
                 onTap: () => _goToPayment(
                   context: context,
                   price: 90000,
-                  ticketType: 'Day_All', // PaymentPage sẽ set days=3 theo giá
+                  ticketType: 'Day_All',
+                  passDays: 3,
                 ),
               ),
               _ticketCard(
@@ -239,6 +169,7 @@ class _BuyTicketPageState extends State<BuyTicketPage> {
                   context: context,
                   price: 300000,
                   ticketType: 'Month',
+                  passDays: 30,
                 ),
               ),
 
@@ -261,12 +192,13 @@ class _BuyTicketPageState extends State<BuyTicketPage> {
                   context: context,
                   price: 150000,
                   ticketType: 'Month',
+                  passDays: 30,
                 ),
               ),
 
               const SizedBox(height: 20),
 
-              // --- Danh sách ga (xem chi tiết) ---
+              // --- Danh sách ga (dùng cho vé lượt) ---
               const Text(
                 "Danh sách ga",
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
@@ -321,14 +253,14 @@ class _BuyTicketPageState extends State<BuyTicketPage> {
             case 1:
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => MyTicketPage()),
+                MaterialPageRoute(builder: (context) => const MyTicketPage()),
               );
               break;
             case 2:
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => TransactionHistoryPage(),
+                  builder: (context) => const TransactionHistoryPage(),
                 ),
               );
               break;

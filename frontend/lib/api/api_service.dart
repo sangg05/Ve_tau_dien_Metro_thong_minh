@@ -95,39 +95,47 @@ class ApiService {
     );
   }
 
-  // === Tickets ===
-  // Mua vé
+  // --- tickets ---
+  /// Mua vé:
+  /// - Time-pass: ticketType = 'Day_All' | 'Month' -> KHÔNG gửi station, gửi `days` (1|3|30)
+  /// - Point-to-point: ticketType = 'Day_Point_To_Point' -> CẦN station, `days` mặc định 1
   static Future<http.Response> purchaseTicket({
     required String ticketType,
-    required String price,
-    required String startStationId,
-    required String endStationId,
-    int? days, // gửi INT (serializer yêu cầu int), KHÔNG toString()
+    required String price, // backend parse Decimal từ string
+    String? startStationId, // null nếu time-pass
+    String? endStationId, // null nếu time-pass
+    int? days, // Day_All: 1|3, Month: 30, P2P: 1
   }) async {
     final uid = await _requireUserId();
-
     final url = Uri.parse('$baseUrl/api/tickets/purchase/');
+
     final body = <String, dynamic>{
       'user_id': uid,
       'ticket_type': ticketType,
-      'price': price, // backend sẽ parse Decimal
-      'start_station': startStationId,
-      'end_station': endStationId,
-      if (days != null) 'days': days, // chỉ gửi khi là vé ngày
+      'price': price,
     };
+
+    if (ticketType == 'Day_All') {
+      body['days'] = days ?? 1; // 1 or 3
+      // KHÔNG gửi station
+    } else if (ticketType == 'Month') {
+      body['days'] = 30;
+      // KHÔNG gửi station
+    } else {
+      // Day_Point_To_Point
+      body['start_station'] = startStationId;
+      body['end_station'] = endStationId;
+      body['days'] = days ?? 1;
+    }
 
     return http.post(url, headers: _headers, body: jsonEncode(body));
   }
 
-  // Lấy danh sách vé của tôi
   static Future<List<Map<String, dynamic>>> getMyTickets() async {
     final uid = await _requireUserId();
     final url = Uri.parse('$baseUrl/api/tickets/?user_id=$uid');
     final res = await http.get(url, headers: _headers);
-
-    if (res.statusCode == 200) {
-      return _decodeList(res);
-    }
+    if (res.statusCode == 200) return _decodeList(res);
     throw Exception('Lấy vé thất bại: ${res.statusCode} - ${res.body}');
   }
 

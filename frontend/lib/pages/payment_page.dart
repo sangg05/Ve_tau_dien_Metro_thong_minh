@@ -5,21 +5,31 @@ import '../api/api_service.dart';
 import 'my_ticket_page.dart'; // điều hướng tới "Vé của tôi"
 
 class PaymentPage extends StatefulWidget {
-  final String startStationId; // UUID ga đi
-  final String destStationId; // UUID ga đến
+  final String? startStationId; // UUID ga đi (có thể null nếu là vé thời gian)
+  final String? destStationId; // UUID ga đến (có thể null nếu là vé thời gian)
   final String startStationName; // Tên ga đi (hiển thị)
   final String destStationName; // Tên ga đến (hiển thị)
   final int price; // Giá
   final String ticketType; // 'Day_All' | 'Month' | 'Day_Point_To_Point'
 
+  // -------------------- (MỚI) HỖ TRỢ VÉ THỜI GIAN --------------------
+  // Nếu là vé 1 ngày/3 ngày/1 tháng → không cần chọn ga
+  final bool isTimePass; // true nếu là vé thời gian (Day_All/Month)
+  final int? passDays; // số ngày sử dụng: 1 | 3 | 30
+  // -------------------------------------------------------------------
+
   const PaymentPage({
     super.key,
-    required this.startStationId,
-    required this.destStationId,
-    required this.startStationName,
-    required this.destStationName,
-    required this.price,
-    required this.ticketType,
+    // Các tham số cũ giữ nguyên ý nghĩa:
+    this.startStationId, // UUID ga đi
+    this.destStationId, // UUID ga đến
+    this.startStationName = "", // Tên ga đi (hiển thị)
+    this.destStationName = "", // Tên ga đến (hiển thị)
+    required this.price, // Giá
+    required this.ticketType, // 'Day_All' | 'Month' | 'Day_Point_To_Point'
+    // Tham số bổ sung để phân biệt vé thời gian
+    this.isTimePass = false,
+    this.passDays,
   });
 
   @override
@@ -67,16 +77,19 @@ class _PaymentPageState extends State<PaymentPage> {
   }
 
   // Nếu là vé ngày thì set days (vd: 1 ngày, 3 ngày). Vé tháng thì không gửi days.
+  // (GIỮ COMMENT CŨ) Thực tế backend mới hỗ trợ luôn days=30 cho Month.
   ({String ticketType, int? days}) _resolveTypeAndDays() {
     if (widget.ticketType == 'Month') {
-      return (ticketType: 'Month', days: null);
+      return (ticketType: 'Month', days: 30); // (MỚI) Month → 30 ngày
     }
     // ticketType là vé ngày → xác định theo price (tuỳ rule của bạn)
-    if (widget.price == 90000) {
-      return (ticketType: 'Day_All', days: 3);
+    if (widget.ticketType == 'Day_All') {
+      // (MỚI) ưu tiên dùng passDays nếu truyền từ BuyTicketPage, fallback theo giá
+      final d = widget.passDays ?? (widget.price == 90000 ? 3 : 1);
+      return (ticketType: 'Day_All', days: d);
     }
-    // mặc định 1 ngày
-    return (ticketType: 'Day_All', days: 1);
+    // mặc định 1 ngày cho vé lượt (không phải time-pass)
+    return (ticketType: 'Day_Point_To_Point', days: 1);
   }
 
   Future<void> _processPayment() async {
@@ -88,19 +101,23 @@ class _PaymentPageState extends State<PaymentPage> {
     }
 
     // Kiểm tra ID ga
-    if (widget.startStationId.isEmpty || widget.destStationId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Thiếu UUID ga. Vui lòng chọn lại hành trình."),
-        ),
-      );
-      return;
-    }
-    if (widget.startStationId == widget.destStationId) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Ga đi và Ga đến không được trùng.")),
-      );
-      return;
+    // (GIỮ COMMENT CŨ) — nhưng chỉ kiểm tra khi KHÔNG phải vé thời gian
+    if (!widget.isTimePass) {
+      if ((widget.startStationId ?? '').isEmpty ||
+          (widget.destStationId ?? '').isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Thiếu UUID ga. Vui lòng chọn lại hành trình."),
+          ),
+        );
+        return;
+      }
+      if (widget.startStationId == widget.destStationId) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Ga đi và Ga đến không được trùng.")),
+        );
+        return;
+      }
     }
 
     setState(() => _submitting = true);
@@ -110,9 +127,11 @@ class _PaymentPageState extends State<PaymentPage> {
       final res = await ApiService.purchaseTicket(
         ticketType: resolved.ticketType,
         price: widget.price.toString(),
-        startStationId: widget.startStationId,
-        endStationId: widget.destStationId,
-        days: resolved.days, // chỉ gửi khi là vé ngày
+        // (MỚI) Nếu là vé thời gian → KHÔNG gửi station
+        startStationId: widget.isTimePass ? null : widget.startStationId,
+        endStationId: widget.isTimePass ? null : widget.destStationId,
+        days: resolved
+            .days, // chỉ gửi khi là vé ngày / month / p2p theo logic resolve
       );
 
       setState(() => _submitting = false);
@@ -209,6 +228,13 @@ class _PaymentPageState extends State<PaymentPage> {
   Widget build(BuildContext context) {
     final price = widget.price;
 
+    // (MỚI) Hiển thị mô tả phù hợp cho vé thời gian
+    final routeDesc = widget.isTimePass
+        ? (widget.ticketType == 'Month'
+              ? 'Vé tháng (30 ngày)'
+              : 'Vé ${widget.passDays ?? (widget.price == 90000 ? 3 : 1)} ngày')
+        : "${widget.startStationName} → ${widget.destStationName}";
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.green[200],
@@ -219,7 +245,9 @@ class _PaymentPageState extends State<PaymentPage> {
         ),
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(
+          16,
+        ), // <<< SỬA Ở ĐÂY: dùng named param `padding:`
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -252,13 +280,10 @@ class _PaymentPageState extends State<PaymentPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    "Địa điểm: ${widget.startStationName} → ${widget.destStationName}",
-                  ),
+                  // Nếu muốn hiển thị chi tiết hơn thì truyền thêm từ widget.*
+                  Text("Mô tả: $routeDesc"),
                   Text("Đơn giá: $price đ"),
                   const Text("Số lượng: 1"),
-                  Text("Thành tiền: $price đ"),
-                  const SizedBox(height: 6),
                   Text(
                     "Tổng giá tiền: $price đ",
                     style: const TextStyle(fontWeight: FontWeight.bold),

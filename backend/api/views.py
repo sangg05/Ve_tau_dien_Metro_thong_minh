@@ -56,6 +56,10 @@ class TicketViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='purchase')
     def purchase(self, request):
+        """
+        - Time-pass (Day_All/Month): không cần station.
+        - Day_Point_To_Point: cần station.
+        """
         input_ser = PurchaseTicketSerializer(data=request.data)
         input_ser.is_valid(raise_exception=True)
         data = input_ser.validated_data
@@ -63,9 +67,8 @@ class TicketViewSet(viewsets.ModelViewSet):
         try:
             with db_transaction.atomic():
                 user = Users.objects.get(user_id=data['user_id'])
-                start = Station.objects.get(station_id=data['start_station'])
-                end = Station.objects.get(station_id=data['end_station'])
 
+                # Giao dịch
                 trans = Transactions.objects.create(
                     user=user,
                     amount=data['price'],
@@ -73,11 +76,15 @@ class TicketViewSet(viewsets.ModelViewSet):
                     method='Other',
                 )
 
-                valid_to = None
-                if data['ticket_type'] == 'Month':
-                    valid_to = timezone.now() + timezone.timedelta(days=30)
-                elif data['ticket_type'] in ('Day_All', 'Day_Point_To_Point', 'Day'):
-                    valid_to = timezone.now() + timezone.timedelta(days=data.get('days', 1))
+                # Hạn dùng
+                valid_to = timezone.now() + timedelta(days=int(data['days']))
+
+                # Station (chỉ cho vé lượt)
+                start_obj = None
+                end_obj = None
+                if data['ticket_type'] == 'Day_Point_To_Point':
+                    start_obj = Station.objects.get(station_id=data['start_station'])
+                    end_obj   = Station.objects.get(station_id=data['end_station'])
 
                 ticket = Ticket.objects.create(
                     user=user,
@@ -86,8 +93,8 @@ class TicketViewSet(viewsets.ModelViewSet):
                     price=data['price'],
                     valid_to=valid_to,
                     ticket_status='Active',
-                    start_station=start,
-                    end_station=end,
+                    start_station=start_obj,
+                    end_station=end_obj,
                     card_uid=str(uuid.uuid4())[:8]
                 )
 
