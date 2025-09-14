@@ -41,6 +41,18 @@ class TicketProductViewSet(viewsets.ModelViewSet):
     queryset = TicketProduct.objects.all()
     serializer_class = TicketProductSerializer
 
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django.db import transaction as db_transaction
+from django.utils import timezone
+import uuid
+from datetime import timedelta
+
+from .models import Users, Transactions, Ticket, Station
+from .serializers import TicketSerializer, PurchaseTicketSerializer
+
+
 class TicketViewSet(viewsets.ModelViewSet):
     queryset = Ticket.objects.all()
     serializer_class = TicketSerializer
@@ -68,6 +80,11 @@ class TicketViewSet(viewsets.ModelViewSet):
             with db_transaction.atomic():
                 user = Users.objects.get(user_id=data['user_id'])
 
+                # Nếu user chưa có card_uid thì sinh mới
+                if not user.card_uid:
+                    user.card_uid = str(uuid.uuid4())[:8]
+                    user.save()
+
                 # Giao dịch
                 trans = Transactions.objects.create(
                     user=user,
@@ -84,8 +101,9 @@ class TicketViewSet(viewsets.ModelViewSet):
                 end_obj = None
                 if data['ticket_type'] == 'Day_Point_To_Point':
                     start_obj = Station.objects.get(station_id=data['start_station'])
-                    end_obj   = Station.objects.get(station_id=data['end_station'])
+                    end_obj = Station.objects.get(station_id=data['end_station'])
 
+                # Tạo vé (không chứa card_uid)
                 ticket = Ticket.objects.create(
                     user=user,
                     transaction=trans,
@@ -95,11 +113,14 @@ class TicketViewSet(viewsets.ModelViewSet):
                     ticket_status='Active',
                     start_station=start_obj,
                     end_station=end_obj,
-                    card_uid=str(uuid.uuid4())[:8]
                 )
 
                 return Response(
-                    {"message": "Mua vé thành công!", "ticket": TicketSerializer(ticket).data},
+                    {
+                        "message": "Mua vé thành công!",
+                        "ticket": TicketSerializer(ticket).data,
+                        "user_card_uid": user.card_uid  # trả về card_uid của user
+                    },
                     status=status.HTTP_201_CREATED
                 )
 
@@ -235,6 +256,7 @@ ml_model = joblib.load(MODEL_PATH)
 ml_scaler = joblib.load(SCALER_PATH)
 
 
+from django.db import models
 @csrf_exempt
 def scan_record(request):
     if request.method != "POST":
@@ -248,26 +270,55 @@ def scan_record(request):
         device_id = data.get("device_id")
 
         if not card_uid or not station_id or not device_type or not device_id:
-            return JsonResponse({"status":"error","message":"Thiếu dữ liệu"}, status=400)
+            return JsonResponse({"status": "error", "message": "Thiếu dữ liệu"}, status=400)
 
+        # 1) Lấy ga
         station = Station.objects.filter(station_id=station_id).first()
         if not station:
-            return JsonResponse({"status":"error","message":"Station không tồn tại"}, status=400)
+            return JsonResponse({"status": "error", "message": "Station không tồn tại"}, status=400)
 
-        ticket = Ticket.objects.filter(card_uid=card_uid).first()
+        # 2) Tìm user theo card_uid
+        try:
+            user = Users.objects.get(card_uid=card_uid)
+        except Users.DoesNotExist:
+            # Lưu log quét không hợp lệ
+            scan = ScanRecord.objects.create(
+                card_uid=card_uid,
+                station=station,
+                device_type=device_type,
+                ticket_found=False,
+                error_reason="UserNotFound",
+                device_id=device_id
+            )
+            return JsonResponse({
+                "status": "error",
+                "reason": "UserNotFound",
+                "scan_id": str(scan.scan_id)
+            }, status=404)
+
+        # 3) Tìm vé Active của user
+        now = timezone.now()
+        ticket = Ticket.objects.filter(
+            user=user,
+            ticket_status="Active",
+            valid_from__lte=now
+        ).filter(
+            models.Q(valid_to__isnull=True) | models.Q(valid_to__gte=now)
+        ).order_by("-valid_to").first()
+
         ticket_found = False
         error_reason = "NoTicket"
         start_station = ""
         end_station = ""
-        now = timezone.now()
 
         if ticket:
+            ticket_found = True
             start_station = ticket.start_station.station_name if ticket.start_station else ""
             end_station = ticket.end_station.station_name if ticket.end_station else ""
 
             # ========== RULE CỨNG ==========
             # Rule 1: Vé hết hạn
-            if ticket.ticket_status == "Expired" or ticket.valid_to <= now:
+            if ticket.ticket_status == "Expired" or (ticket.valid_to and ticket.valid_to <= now):
                 FraudLog.objects.create(ticket=ticket, description="Vé đã hết hạn")
                 return JsonResponse({"status": "error", "reason": "Expired"}, status=403)
 
@@ -296,28 +347,27 @@ def scan_record(request):
                 ticket.last_station_count = 1
             ticket.last_check_time = now
             ticket.save()
+
             if getattr(ticket, 'last_station_count', 0) > 5:
                 FraudLog.objects.create(ticket=ticket, description="Quét cùng vé >5 lần liên tiếp tại cùng ga trong 1 phút")
-                return JsonResponse({"status":"error","reason":"HighFrequencySameStation"}, status=403)
+                return JsonResponse({"status": "error", "reason": "HighFrequencySameStation"}, status=403)
 
             # ========== ML PREDICTION ==========
             features = [[
                 getattr(ticket, 'last_station_count', 0),
                 daily_scans,
-                0  # vì Rule 5 bị bỏ nên multi_device_flag luôn = 0
+                0  # Rule 5 bỏ, multi_device_flag = 0
             ]]
             features_scaled = ml_scaler.transform(features)
             fraud_prob = ml_model.predict_proba(features_scaled)[0][1]
 
-            if fraud_prob > 0.5:  # threshold có thể điều chỉnh
+            if fraud_prob > 0.5:  # threshold
                 FraudLog.objects.create(ticket=ticket, description=f"ML predicted fraud: {fraud_prob:.2f}")
                 error_reason = "ML_Fraud"
-
-            ticket_found = True
-            if error_reason == "NoTicket":
+            else:
                 error_reason = "None"
 
-        # Lưu ScanRecord
+        # 4) Lưu ScanRecord
         scan = ScanRecord.objects.create(
             card_uid=card_uid,
             station=station,
@@ -328,7 +378,7 @@ def scan_record(request):
         )
 
         return JsonResponse({
-            "status":"success",
+            "status": "success",
             "scan_id": str(scan.scan_id),
             "ticket_found": ticket_found,
             "error_reason": error_reason,
@@ -337,4 +387,4 @@ def scan_record(request):
         }, status=201)
 
     except Exception as e:
-        return JsonResponse({"status":"error","message": str(e)}, status=400)
+        return JsonResponse({"status": "error", "message": str(e)}, status=400)

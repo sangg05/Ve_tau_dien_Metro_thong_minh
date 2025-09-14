@@ -5,10 +5,10 @@
 #include <ArduinoJson.h>
 
 // ==== WiFi & Backend ====
-const char* ssid = "AI";
-const char* password = "phhuong02";
-const char* serverStationURL = "http://10.241.150.134:8000/api/get_station/";
-const char* serverScanURL   = "http://10.241.150.134:8000/api/scan/";
+const char* ssid = "302/36";
+const char* password = "Bo@302/36";
+const char* serverStationURL = "http://192.168.100.208:8000/api/get_station/";
+const char* serverScanURL   = "http://192.168.100.208:8000/api/scan/";
 
 // ==== PN532 I2C ====
 #define SDA_PIN 25
