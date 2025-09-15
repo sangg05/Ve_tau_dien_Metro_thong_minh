@@ -69,6 +69,7 @@ class TicketViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'], url_path='purchase')
     def purchase(self, request):
         """
+        API mua vé: trả về JSON chuẩn cho ESP32.
         - Time-pass (Day_All/Month): không cần station.
         - Day_Point_To_Point: cần station.
         """
@@ -85,7 +86,7 @@ class TicketViewSet(viewsets.ModelViewSet):
                     user.card_uid = str(uuid.uuid4())[:8]
                     user.save()
 
-                # Giao dịch
+                # Tạo giao dịch
                 trans = Transactions.objects.create(
                     user=user,
                     amount=data['price'],
@@ -103,7 +104,7 @@ class TicketViewSet(viewsets.ModelViewSet):
                     start_obj = Station.objects.get(station_id=data['start_station'])
                     end_obj = Station.objects.get(station_id=data['end_station'])
 
-                # Tạo vé (không chứa card_uid)
+                # Tạo ticket
                 ticket = Ticket.objects.create(
                     user=user,
                     transaction=trans,
@@ -115,11 +116,14 @@ class TicketViewSet(viewsets.ModelViewSet):
                     end_station=end_obj,
                 )
 
+                # Chuyển ticket sang dict để Flutter dễ dùng
+                ticket_data = TicketSerializer(ticket).data
+                ticket_data['user_card_uid'] = user.card_uid
+
                 return Response(
                     {
                         "message": "Mua vé thành công!",
-                        "ticket": TicketSerializer(ticket).data,
-                        "user_card_uid": user.card_uid  # trả về card_uid của user
+                        "ticket": ticket_data
                     },
                     status=status.HTTP_201_CREATED
                 )
