@@ -297,7 +297,7 @@ def scan_record(request):
             features = [[
                 getattr(ticket, 'last_station_count', 0),
                 daily_scans,
-                0  # vì Rule 5 bị bỏ nên multi_device_flag luôn = 0
+                0 
             ]]
             features_scaled = ml_scaler.transform(features)
             fraud_prob = ml_model.predict_proba(features_scaled)[0][1]
