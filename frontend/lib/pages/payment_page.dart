@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // để copy vào clipboard
 
 import '../api/api_service.dart';
-import 'my_ticket_page.dart'; // điều hướng tới "Vé của tôi"
 
 class PaymentPage extends StatefulWidget {
   final String? startStationId; // UUID ga đi (có thể null nếu là vé thời gian)
@@ -13,21 +13,18 @@ class PaymentPage extends StatefulWidget {
   final String ticketType; // 'Day_All' | 'Month' | 'Day_Point_To_Point'
 
   // -------------------- (MỚI) HỖ TRỢ VÉ THỜI GIAN --------------------
-  // Nếu là vé 1 ngày/3 ngày/1 tháng → không cần chọn ga
   final bool isTimePass; // true nếu là vé thời gian (Day_All/Month)
   final int? passDays; // số ngày sử dụng: 1 | 3 | 30
   // -------------------------------------------------------------------
 
   const PaymentPage({
     super.key,
-    // Các tham số cũ giữ nguyên ý nghĩa:
-    this.startStationId, // UUID ga đi
-    this.destStationId, // UUID ga đến
-    this.startStationName = "", // Tên ga đi (hiển thị)
-    this.destStationName = "", // Tên ga đến (hiển thị)
-    required this.price, // Giá
-    required this.ticketType, // 'Day_All' | 'Month' | 'Day_Point_To_Point'
-    // Tham số bổ sung để phân biệt vé thời gian
+    this.startStationId,
+    this.destStationId,
+    this.startStationName = "",
+    this.destStationName = "",
+    required this.price,
+    required this.ticketType,
     this.isTimePass = false,
     this.passDays,
   });
@@ -76,19 +73,14 @@ class _PaymentPageState extends State<PaymentPage> {
     }
   }
 
-  // Nếu là vé ngày thì set days (vd: 1 ngày, 3 ngày). Vé tháng thì không gửi days.
-  // (GIỮ COMMENT CŨ) Thực tế backend mới hỗ trợ luôn days=30 cho Month.
   ({String ticketType, int? days}) _resolveTypeAndDays() {
     if (widget.ticketType == 'Month') {
-      return (ticketType: 'Month', days: 30); // (MỚI) Month → 30 ngày
+      return (ticketType: 'Month', days: 30);
     }
-    // ticketType là vé ngày → xác định theo price (tuỳ rule của bạn)
     if (widget.ticketType == 'Day_All') {
-      // (MỚI) ưu tiên dùng passDays nếu truyền từ BuyTicketPage, fallback theo giá
       final d = widget.passDays ?? (widget.price == 90000 ? 3 : 1);
       return (ticketType: 'Day_All', days: d);
     }
-    // mặc định 1 ngày cho vé lượt (không phải time-pass)
     return (ticketType: 'Day_Point_To_Point', days: 1);
   }
 
@@ -100,8 +92,6 @@ class _PaymentPageState extends State<PaymentPage> {
       return;
     }
 
-    // Kiểm tra ID ga
-    // (GIỮ COMMENT CŨ) — nhưng chỉ kiểm tra khi KHÔNG phải vé thời gian
     if (!widget.isTimePass) {
       if ((widget.startStationId ?? '').isEmpty ||
           (widget.destStationId ?? '').isEmpty) {
@@ -127,11 +117,9 @@ class _PaymentPageState extends State<PaymentPage> {
       final res = await ApiService.purchaseTicket(
         ticketType: resolved.ticketType,
         price: widget.price.toString(),
-        // (MỚI) Nếu là vé thời gian → KHÔNG gửi station
         startStationId: widget.isTimePass ? null : widget.startStationId,
         endStationId: widget.isTimePass ? null : widget.destStationId,
-        days: resolved
-            .days, // chỉ gửi khi là vé ngày / month / p2p theo logic resolve
+        days: resolved.days,
       );
 
       setState(() => _submitting = false);
@@ -139,45 +127,47 @@ class _PaymentPageState extends State<PaymentPage> {
       if (res.statusCode == 201) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         final t = (data['ticket'] ?? {}) as Map<String, dynamic>;
+        final records = (t['records'] ?? []) as List;
 
-        // Ưu tiên: ticket_code -> short_code -> ticket_id
-        final code =
-            (t['ticket_code'] ?? t['short_code'] ?? t['ticket_id'] ?? '')
-                .toString();
+        // Bỏ field "Route" nếu có
+        final filtered = records.where((r) {
+          final v = (r['value'] ?? '').toString();
+          return !v.startsWith('Route:');
+        }).toList();
+
+        final jsonRecords = {"records": filtered};
+
+        final jsonStr = const JsonEncoder.withIndent('  ').convert(jsonRecords);
 
         if (!mounted) return;
         await showDialog(
           context: context,
           builder: (_) => AlertDialog(
             title: const Text('Mua vé thành công'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Mã vé: $code'),
-                Text('Loại: ${t['ticket_type'] ?? ''}'),
-                Text('Giá: ${t['price'] ?? ''}'),
-                Text('Hạn dùng: ${t['valid_to'] ?? '(vé ngày)'}'),
-                Text('Trạng thái: ${t['ticket_status'] ?? ''}'),
-              ],
+            content: SingleChildScrollView(
+              child: SelectableText(
+                jsonStr,
+                style: const TextStyle(fontFamily: 'monospace'),
+              ),
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context), // đóng dialog
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: jsonStr));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Đã copy JSON vào clipboard")),
+                  );
+                },
+                child: const Text('Copy JSON'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
                 child: const Text('OK'),
               ),
             ],
           ),
         );
-
-        // Điều hướng sang "Vé của tôi" để thấy vé vừa mua
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const MyTicketPage()),
-        );
       } else {
-        // cố gắng bóc tách message lỗi từ backend
         String msg = 'Lỗi: ${res.statusCode}';
         try {
           final err = jsonDecode(res.body);
@@ -228,7 +218,6 @@ class _PaymentPageState extends State<PaymentPage> {
   Widget build(BuildContext context) {
     final price = widget.price;
 
-    // (MỚI) Hiển thị mô tả phù hợp cho vé thời gian
     final routeDesc = widget.isTimePass
         ? (widget.ticketType == 'Month'
               ? 'Vé tháng (30 ngày)'
@@ -245,9 +234,7 @@ class _PaymentPageState extends State<PaymentPage> {
         ),
       ),
       body: Padding(
-        padding: const EdgeInsets.all(
-          16,
-        ), // <<< SỬA Ở ĐÂY: dùng named param `padding:`
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -280,7 +267,6 @@ class _PaymentPageState extends State<PaymentPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Nếu muốn hiển thị chi tiết hơn thì truyền thêm từ widget.*
                   Text("Mô tả: $routeDesc"),
                   Text("Đơn giá: $price đ"),
                   const Text("Số lượng: 1"),
@@ -307,7 +293,6 @@ class _PaymentPageState extends State<PaymentPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: const [
-                  // Nếu muốn hiển thị chi tiết hơn thì truyền thêm từ widget.*
                   Text("Loại vé: Tự động theo lựa chọn"),
                   Text("HSD: tự động tính theo loại vé"),
                   Text("Lưu ý: Không hoàn tiền sau khi thanh toán"),

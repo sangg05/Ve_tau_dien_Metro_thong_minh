@@ -44,7 +44,6 @@ from rest_framework import serializers
 from .models import Ticket
 
 class TicketSerializer(serializers.ModelSerializer):
-    # Trả về mảng records theo format NFC Tools, lấy card_uid từ user (Users.card_uid)
     records = serializers.SerializerMethodField()
 
     class Meta:
@@ -73,11 +72,10 @@ class TicketSerializer(serializers.ModelSerializer):
             except Exception:
                 return str(dt)
 
-        # route: nếu Month / Day_All thì N/A, else hiển thị tên station
+        # route
         if getattr(obj, "ticket_type", "") in ("Month", "Day_All"):
             route = "N/A"
         else:
-            # Station có thể có trường station_name hoặc name; thử nhiều thuộc tính
             def station_label(s):
                 if not s:
                     return ""
@@ -86,12 +84,12 @@ class TicketSerializer(serializers.ModelSerializer):
             end = station_label(obj.end_station)
             route = f"{start} -> {end}" if (start or end) else "N/A"
 
-        # valid string
+        # valid
         valid_str = ""
         if getattr(obj, "valid_from", None) or getattr(obj, "valid_to", None):
             valid_str = f"{fmt_date(obj.valid_from)} -> {fmt_date(obj.valid_to)}".strip(" -> ")
 
-        # lấy card_uid từ user (Users.card_uid)
+        # lấy card_uid từ user
         user_card_uid = ""
         if getattr(obj, "user", None):
             user_card_uid = getattr(obj.user, "card_uid", "") or ""

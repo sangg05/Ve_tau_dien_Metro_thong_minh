@@ -8,7 +8,6 @@ class HomePage extends StatelessWidget {
     final List<Map<String, dynamic>> menuItems = [
       {"icon": Icons.confirmation_number, "label": "Mua vé", "route": "/buy"},
       {"icon": Icons.receipt_long, "label": "Vé của tôi", "route": "/myticket"},
-      {"icon": Icons.map, "label": "Hành trình", "route": "/journey"},
       {"icon": Icons.person, "label": "Tài khoản", "route": "/TK"},
       {"icon": Icons.login, "label": "Đăng nhập", "route": "/login"},
       {"icon": Icons.settings, "label": "Cài đặt", "route": "/settings"},

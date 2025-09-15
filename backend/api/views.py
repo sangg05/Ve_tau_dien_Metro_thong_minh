@@ -268,13 +268,31 @@ def scan_record(request):
 
     try:
         data = json.loads(request.body.decode("utf-8"))
+
+        # --- Ưu tiên lấy UID mềm từ record NFC Tools ---
         card_uid = data.get("card_uid")
+        if not card_uid:
+            records = data.get("records", [])
+            if isinstance(records, list):
+                for rec in records:
+                    if (
+                        isinstance(rec, dict)
+                        and rec.get("type") == "TEXT"
+                        and str(rec.get("value", "")).startswith("CARD_UID:")
+                    ):
+                        card_uid = rec["value"].replace("CARD_UID:", "").strip()
+                        break
+
         station_id = data.get("station_id")
         device_type = data.get("device_type")
         device_id = data.get("device_id")
 
+        # Kiểm tra dữ liệu bắt buộc
         if not card_uid or not station_id or not device_type or not device_id:
-            return JsonResponse({"status": "error", "message": "Thiếu dữ liệu"}, status=400)
+            return JsonResponse(
+                {"status": "error", "message": "Thiếu dữ liệu (card_uid, station_id, device_type, device_id)"},
+                status=400,
+            )
 
         # 1) Lấy ga
         station = Station.objects.filter(station_id=station_id).first()
@@ -285,30 +303,35 @@ def scan_record(request):
         try:
             user = Users.objects.get(card_uid=card_uid)
         except Users.DoesNotExist:
-            # Lưu log quét không hợp lệ
             scan = ScanRecord.objects.create(
                 card_uid=card_uid,
                 station=station,
                 device_type=device_type,
                 ticket_found=False,
                 error_reason="UserNotFound",
-                device_id=device_id
+                device_id=device_id,
             )
-            return JsonResponse({
-                "status": "error",
-                "reason": "UserNotFound",
-                "scan_id": str(scan.scan_id)
-            }, status=404)
+            return JsonResponse(
+                {
+                    "status": "error",
+                    "reason": "UserNotFound",
+                    "scan_id": str(scan.scan_id),
+                },
+                status=404,
+            )
 
         # 3) Tìm vé Active của user
         now = timezone.now()
-        ticket = Ticket.objects.filter(
-            user=user,
-            ticket_status="Active",
-            valid_from__lte=now
-        ).filter(
-            models.Q(valid_to__isnull=True) | models.Q(valid_to__gte=now)
-        ).order_by("-valid_to").first()
+        ticket = (
+            Ticket.objects.filter(
+                user=user,
+                ticket_status="Active",
+                valid_from__lte=now,
+            )
+            .filter(models.Q(valid_to__isnull=True) | models.Q(valid_to__gte=now))
+            .order_by("-valid_to")
+            .first()
+        )
 
         ticket_found = False
         error_reason = "NoTicket"
@@ -320,7 +343,6 @@ def scan_record(request):
             start_station = ticket.start_station.station_name if ticket.start_station else ""
             end_station = ticket.end_station.station_name if ticket.end_station else ""
 
-            # ========== RULE CỨNG ==========
             # Rule 1: Vé hết hạn
             if ticket.ticket_status == "Expired" or (ticket.valid_to and ticket.valid_to <= now):
                 FraudLog.objects.create(ticket=ticket, description="Vé đã hết hạn")
@@ -341,9 +363,9 @@ def scan_record(request):
                 return JsonResponse({"status": "error", "reason": "HighFrequency"}, status=403)
 
             # Rule 4: Quét liên tiếp >5 lần cùng ga trong 1 phút
-            if getattr(ticket, 'last_station_id', None) == station_id:
-                if getattr(ticket, 'last_check_time', None) and now - ticket.last_check_time <= timedelta(minutes=1):
-                    ticket.last_station_count = getattr(ticket, 'last_station_count', 0) + 1
+            if getattr(ticket, "last_station_id", None) == station_id:
+                if getattr(ticket, "last_check_time", None) and now - ticket.last_check_time <= timedelta(minutes=1):
+                    ticket.last_station_count = getattr(ticket, "last_station_count", 0) + 1
                 else:
                     ticket.last_station_count = 1
             else:
@@ -352,43 +374,42 @@ def scan_record(request):
             ticket.last_check_time = now
             ticket.save()
 
-            if getattr(ticket, 'last_station_count', 0) > 5:
+            if getattr(ticket, "last_station_count", 0) > 5:
                 FraudLog.objects.create(ticket=ticket, description="Quét cùng vé >5 lần liên tiếp tại cùng ga trong 1 phút")
                 return JsonResponse({"status": "error", "reason": "HighFrequencySameStation"}, status=403)
 
-            # ========== ML PREDICTION ==========
-            features = [[
-                getattr(ticket, 'last_station_count', 0),
-                daily_scans,
-                0  # Rule 5 bỏ, multi_device_flag = 0
-            ]]
+            # ML Prediction
+            features = [[getattr(ticket, "last_station_count", 0), daily_scans, 0]]
             features_scaled = ml_scaler.transform(features)
             fraud_prob = ml_model.predict_proba(features_scaled)[0][1]
 
-            if fraud_prob > 0.5:  # threshold
+            if fraud_prob > 0.5:
                 FraudLog.objects.create(ticket=ticket, description=f"ML predicted fraud: {fraud_prob:.2f}")
                 error_reason = "ML_Fraud"
             else:
                 error_reason = "None"
 
-        # 4) Lưu ScanRecord
+        # 4) Lưu log quét
         scan = ScanRecord.objects.create(
             card_uid=card_uid,
             station=station,
             device_type=device_type,
             ticket_found=ticket_found,
             error_reason=error_reason,
-            device_id=device_id
+            device_id=device_id,
         )
 
-        return JsonResponse({
-            "status": "success",
-            "scan_id": str(scan.scan_id),
-            "ticket_found": ticket_found,
-            "error_reason": error_reason,
-            "start_station": start_station,
-            "end_station": end_station
-        }, status=201)
+        return JsonResponse(
+            {
+                "status": "success",
+                "scan_id": str(scan.scan_id),
+                "ticket_found": ticket_found,
+                "error_reason": error_reason,
+                "start_station": start_station,
+                "end_station": end_station,
+            },
+            status=201,
+        )
 
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=400)

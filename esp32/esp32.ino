@@ -141,11 +141,14 @@ void successFeedback() {
 void errorFeedback() {
   for (int i = 0; i < 3; i++) {
     digitalWrite(LED_RED_PIN, HIGH);
+    digitalWrite(BUZZER_PIN, HIGH);  // Buzzer kêu cùng lúc LED đỏ
     delay(200);
     digitalWrite(LED_RED_PIN, LOW);
+    digitalWrite(BUZZER_PIN, LOW);
     delay(200);
   }
 }
+
 
 // ==== Setup ====
 void setup() {
